@@ -112,8 +112,22 @@ class DCAExtractor:
                 local_file = os.path.join(self.LOCAL_PATH, filename)
                 file_size = sftp.stat(filename).st_size
 
+                self.log(f"↓ Descargando: {filename} ({file_size / 1024 / 1024:.2f} MB)")
+
                 with open(local_file, "wb") as f:
-                    sftp.getfo(filename, f)
+                    bytes_read = 0
+                    with sftp.file(filename, "r") as remote_file:
+                        while True:
+                            chunk = remote_file.read(1024 * 256)  # 256 KB chunks
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            bytes_read += len(chunk)
+
+                            # Progreso en tiempo real
+                            file_progress = (bytes_read / file_size) * 100
+                            self.log(f"  {filename}: {file_progress:.1f}% ({bytes_read / 1024 / 1024:.2f}/{file_size / 1024 / 1024:.2f} MB)")
+                            self.root.update()
 
                 downloaded_size += file_size
                 elapsed = time.time() - start_time
@@ -121,12 +135,13 @@ class DCAExtractor:
                 remaining_size = total_size - downloaded_size
                 eta = remaining_size / speed if speed > 0 else 0
 
-                self.log(f"✓ Descargado: {filename} ({file_size / 1024:.2f} KB)")
-                self.log(f"  Velocidad: {speed / 1024 / 1024:.2f} MB/s | ETA: {int(eta)} seg")
+                self.log(f"✓ Completado: {filename}")
+                self.log(f"  Velocidad: {speed / 1024 / 1024:.2f} MB/s | ETA: {int(eta)} seg\n")
 
                 progress = ((i + 1) / len(txt_files)) * 100
                 self.progress_var.set(progress)
                 self.draw_progress()
+                self.update_status(f"Descargando {i + 1}/{len(txt_files)} archivos...")
 
             sftp.close()
             ssh.close()
