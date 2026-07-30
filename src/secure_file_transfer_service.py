@@ -8,6 +8,8 @@ from src.configuration_settings import (
     SECURE_FILE_TRANSFER_USERNAME,
     SECURE_FILE_TRANSFER_PASSWORD,
     REMOTE_FILE_EXTENSION_FILTER,
+    LARGE_FILE_REQUEST_CHUNK_SIZE_IN_BYTES,
+    SSH_TRANSPORT_WINDOW_SIZE_IN_BYTES,
 )
 
 
@@ -31,6 +33,16 @@ class SecureFileTransferService:
             SECURE_FILE_TRANSFER_USERNAME,
             SECURE_FILE_TRANSFER_PASSWORD,
         )
+
+        underlying_transport = self.secure_shell_client.get_transport()
+        underlying_transport.default_window_size = SSH_TRANSPORT_WINDOW_SIZE_IN_BYTES
+        underlying_transport.window_size = SSH_TRANSPORT_WINDOW_SIZE_IN_BYTES
+
+        # Peticiones SFTP mas grandes: menos peticiones individuales para el mismo
+        # archivo, lo que evita la pausa larga previa a que se vea progreso real
+        # en archivos grandes (antes se despachaban miles de peticiones de 32 KB).
+        paramiko.SFTPFile.MAX_REQUEST_SIZE = LARGE_FILE_REQUEST_CHUNK_SIZE_IN_BYTES
+
         self.secure_file_transfer_client = self.secure_shell_client.open_sftp()
 
     def list_remote_text_file_names(self, remote_directory_path):
@@ -45,14 +57,13 @@ class SecureFileTransferService:
     def get_remote_file_size_in_bytes(self, remote_file_name):
         return self.secure_file_transfer_client.stat(remote_file_name).st_size
 
-    def download_remote_file_with_progress(self, remote_file_name, local_destination_directory_path,
-                                            on_chunk_downloaded_callback):
+    def download_remote_file_with_progress(self, remote_file_name, remote_file_size_in_bytes,
+                                            local_destination_directory_path, on_chunk_downloaded_callback):
         """Descarga usando prefetch: paramiko encola muchas lecturas en paralelo
         en lugar de esperar la respuesta de red de cada lectura antes de pedir la siguiente.
         Esto reduce drasticamente el tiempo total en conexiones con latencia (VPN/SFTP remoto).
         """
         local_destination_file_path = os.path.join(local_destination_directory_path, remote_file_name)
-        remote_file_size_in_bytes = self.get_remote_file_size_in_bytes(remote_file_name)
 
         with open(local_destination_file_path, "wb") as local_output_file_handle:
             self.secure_file_transfer_client.getfo(

@@ -272,21 +272,30 @@ class DCAExtractorApplicationWindow:
                 self.finish_download_process()
                 return
 
-            total_size_in_bytes_of_all_files = sum(
-                secure_file_transfer_service.get_remote_file_size_in_bytes(remote_file_name)
-                for remote_file_name in remote_text_file_names
+            remote_files_with_sizes_ascending = sorted(
+                (
+                    (remote_file_name, secure_file_transfer_service.get_remote_file_size_in_bytes(remote_file_name))
+                    for remote_file_name in remote_text_file_names
+                ),
+                key=lambda file_name_and_size: file_name_and_size[1],
             )
+
+            total_size_in_bytes_of_all_files = sum(
+                file_size_in_bytes for _, file_size_in_bytes in remote_files_with_sizes_ascending)
             self.append_log_entry(
                 f"Tamano total: {total_size_in_bytes_of_all_files / 1024 / 1024:.2f} MB", "normal_tag")
             self.append_log_entry(
-                f"Encontrados {len(remote_text_file_names)} archivos .txt", "success_tag")
+                f"Encontrados {len(remote_files_with_sizes_ascending)} archivos .txt "
+                f"(ordenados del que pesa menos al que pesa mas)", "success_tag")
 
             workflow_start_time = time.time()
             total_bytes_downloaded_so_far = 0
+            total_file_count = len(remote_files_with_sizes_ascending)
 
-            for current_file_index, remote_file_name in enumerate(remote_text_file_names):
+            for current_file_index, (remote_file_name, current_file_size_in_bytes) in enumerate(
+                    remote_files_with_sizes_ascending):
                 self.update_progress_label_message(
-                    f"Descargando {current_file_index + 1}/{len(remote_text_file_names)} archivos...")
+                    f"Descargando {current_file_index + 1}/{total_file_count} archivos...")
 
                 if local_file_with_matching_name_exists(local_destination_directory_path, remote_file_name):
                     self.append_log_entry(
@@ -295,8 +304,6 @@ class DCAExtractorApplicationWindow:
                     self.append_log_entry(
                         f"El archivo no existe localmente y sera creado: {remote_file_name}", "normal_tag")
 
-                current_file_size_in_bytes = secure_file_transfer_service.get_remote_file_size_in_bytes(
-                    remote_file_name)
                 self.append_log_entry(
                     f"Descargando: {remote_file_name} ({current_file_size_in_bytes / 1024 / 1024:.2f} MB)",
                     "highlight_tag")
@@ -331,7 +338,8 @@ class DCAExtractorApplicationWindow:
                     self.root_window.update_idletasks()
 
                 downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
-                    remote_file_name, local_destination_directory_path, handle_chunk_downloaded)
+                    remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
+                    handle_chunk_downloaded)
 
                 total_bytes_downloaded_so_far += downloaded_file_size_in_bytes
                 elapsed_time_in_seconds = time.time() - workflow_start_time

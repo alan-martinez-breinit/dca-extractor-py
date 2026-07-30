@@ -11,3 +11,13 @@ REMOTE_FILE_EXTENSION_FILTER = ".txt"
 
 PROGRESS_LOG_STEP_PERCENTAGE = 5
 INTERFACE_UPDATE_STEP_PERCENTAGE = 0.5
+
+# Tamano de cada peticion SFTP durante el prefetch. Un valor mas grande significa
+# menos peticiones para el mismo archivo, lo que reduce el tiempo de despacho previo
+# a que empiece a verse progreso real en archivos grandes.
+LARGE_FILE_REQUEST_CHUNK_SIZE_IN_BYTES = 1024 * 1024  # 1 MB
+
+# Ventana de flujo del transporte SSH. El valor por defecto de paramiko (2 MB) limita
+# cuantos datos pueden viajar en paralelo antes de esperar confirmacion, lo cual
+# se nota mas mientras mas grande es el archivo. Se amplia al maximo permitido.
+SSH_TRANSPORT_WINDOW_SIZE_IN_BYTES = 2147483647
