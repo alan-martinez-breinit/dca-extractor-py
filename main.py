@@ -1,6 +1,3 @@
-import warnings
-warnings.filterwarnings('ignore', category=DeprecationWarning)
-
 import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import paramiko
