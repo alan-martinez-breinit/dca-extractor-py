@@ -169,12 +169,6 @@ class DCAExtractor:
             dot.create_oval(1, 1, 9, 9, fill=color, outline="")
             dot.pack(side="left", padx=2)
 
-        self.copy_btn = tk.Label(title_bar, text="Copiar", font=self.fonts["body"],
-                                  bg=COLORS["surface_container_high"], fg=COLORS["on_surface_variant"],
-                                  cursor="hand2")
-        self.copy_btn.pack(side="right", padx=12)
-        self.copy_btn.bind("<Button-1>", self.copy_log)
-
         log_frame = tk.Frame(card, bg=COLORS["surface_lowest"])
         log_frame.pack(fill="both", expand=True)
 
@@ -204,12 +198,6 @@ class DCAExtractor:
         self.log_text.insert("end", f"{message}\n", kind)
         self.log_text.see("end")
         self.log_text.config(state="disabled")
-
-    def copy_log(self, event=None):
-        content = self.log_text.get("1.0", "end")
-        self.root.clipboard_clear()
-        self.root.clipboard_append(content)
-        self.log("Registro copiado al portapapeles", "highlight")
 
     def update_status(self, message):
         self.hero_canvas.itemconfig(self.status_text_id, text=message)
