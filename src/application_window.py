@@ -20,6 +20,7 @@ from src.filesystem_helpers import (
     local_file_with_matching_name_exists,
 )
 from src.secure_file_transfer_service import SecureFileTransferService
+from src.schema_ini_generator import generate_schema_ini_file
 
 
 class DCAExtractorApplicationWindow:
@@ -356,6 +357,11 @@ class DCAExtractorApplicationWindow:
                     f"ETA: {int(estimated_time_remaining_in_seconds)} seg", "normal_tag")
 
             secure_file_transfer_service.disconnect_from_remote_server()
+
+            self.append_log_entry("Generando schema.ini con la descripcion de cada archivo...", "normal_tag")
+            downloaded_file_names = [file_name for file_name, _ in remote_files_with_sizes_ascending]
+            generate_schema_ini_file(local_destination_directory_path, downloaded_file_names)
+            self.append_log_entry("schema.ini generado exitosamente", "success_tag")
 
             self.update_status_message("Descarga completada")
             self.update_progress_label_message("Transferencia finalizada")
