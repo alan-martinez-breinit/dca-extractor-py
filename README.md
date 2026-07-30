@@ -1,6 +1,6 @@
 # Breinit DCA Extractor (Python)
 
-Descarga de archivos SFTP desde servidor remoto.
+Descarga de archivos SFTP desde servidor remoto y convierte cada `.txt` (pipe-delimited) a `.jsonl` (un objeto JSON por línea, usando la primera fila como nombres de campo).
 
 ## Requisitos
 

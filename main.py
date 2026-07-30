@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import paramiko
 import os
+import json
 from pathlib import Path
 import threading
 import time
@@ -109,25 +110,52 @@ class DCAExtractor:
             downloaded_size = 0
 
             for i, filename in enumerate(txt_files):
-                local_file = os.path.join(self.LOCAL_PATH, filename)
+                jsonl_name = Path(filename).stem + ".jsonl"
+                local_file = os.path.join(self.LOCAL_PATH, jsonl_name)
                 file_size = sftp.stat(filename).st_size
 
                 self.log(f"↓ Descargando: {filename} ({file_size / 1024 / 1024:.2f} MB)")
 
-                with open(local_file, "wb") as f:
-                    bytes_read = 0
+                bytes_read = 0
+                headers = None
+                buffer = ""
+                rows_written = 0
+
+                with open(local_file, "w", encoding="utf-8") as out_f:
                     with sftp.file(filename, "r") as remote_file:
                         while True:
                             chunk = remote_file.read(1024 * 256)  # 256 KB chunks
                             if not chunk:
                                 break
-                            f.write(chunk)
                             bytes_read += len(chunk)
+                            buffer += chunk.decode("utf-8", errors="replace")
+
+                            lines = buffer.split("\n")
+                            buffer = lines.pop()  # línea incompleta, se conserva para el próximo chunk
+
+                            for line in lines:
+                                line = line.rstrip("\r")
+                                if not line:
+                                    continue
+                                if headers is None:
+                                    headers = line.split("|")
+                                    continue
+                                values = line.split("|")
+                                row = dict(zip(headers, values))
+                                out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                                rows_written += 1
 
                             # Progreso en tiempo real
                             file_progress = (bytes_read / file_size) * 100
                             self.log(f"  {filename}: {file_progress:.1f}% ({bytes_read / 1024 / 1024:.2f}/{file_size / 1024 / 1024:.2f} MB)")
                             self.root.update()
+
+                    # Procesar última línea si quedó pendiente en el buffer
+                    if buffer.strip() and headers is not None:
+                        values = buffer.rstrip("\r").split("|")
+                        row = dict(zip(headers, values))
+                        out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
+                        rows_written += 1
 
                 downloaded_size += file_size
                 elapsed = time.time() - start_time
@@ -135,7 +163,7 @@ class DCAExtractor:
                 remaining_size = total_size - downloaded_size
                 eta = remaining_size / speed if speed > 0 else 0
 
-                self.log(f"✓ Completado: {filename}")
+                self.log(f"✓ Completado: {jsonl_name} ({rows_written} registros)")
                 self.log(f"  Velocidad: {speed / 1024 / 1024:.2f} MB/s | ETA: {int(eta)} seg\n")
 
                 progress = ((i + 1) / len(txt_files)) * 100
