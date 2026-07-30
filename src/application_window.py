@@ -13,8 +13,6 @@ from src.configuration_settings import (
     LOCAL_CLIENT_SUBDIRECTORY_NAME,
     PROGRESS_LOG_STEP_PERCENTAGE,
     INTERFACE_UPDATE_STEP_PERCENTAGE,
-    LARGE_FILE_SIZE_THRESHOLD_IN_BYTES,
-    PARALLEL_DOWNLOAD_STREAM_COUNT_FOR_LARGE_FILES,
 )
 from src.filesystem_helpers import (
     ensure_base_directory_exists,
@@ -339,18 +337,9 @@ class DCAExtractorApplicationWindow:
                     self.update_progress_bar(overall_progress_percentage)
                     self.root_window.update_idletasks()
 
-                if current_file_size_in_bytes >= LARGE_FILE_SIZE_THRESHOLD_IN_BYTES:
-                    self.append_log_entry(
-                        f"Archivo grande: se descargara en "
-                        f"{PARALLEL_DOWNLOAD_STREAM_COUNT_FOR_LARGE_FILES} partes simultaneas", "highlight_tag")
-                    downloaded_file_size_in_bytes = (
-                        secure_file_transfer_service.download_remote_file_in_parallel_parts(
-                            remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
-                            PARALLEL_DOWNLOAD_STREAM_COUNT_FOR_LARGE_FILES, handle_chunk_downloaded))
-                else:
-                    downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
-                        remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
-                        handle_chunk_downloaded)
+                downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
+                    remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
+                    handle_chunk_downloaded)
 
                 total_bytes_downloaded_so_far += downloaded_file_size_in_bytes
                 elapsed_time_in_seconds = time.time() - workflow_start_time
