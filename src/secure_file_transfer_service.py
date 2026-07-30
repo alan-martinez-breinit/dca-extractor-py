@@ -8,6 +8,7 @@ from src.configuration_settings import (
     SECURE_FILE_TRANSFER_USERNAME,
     SECURE_FILE_TRANSFER_PASSWORD,
     REMOTE_FILE_EXTENSION_FILTER,
+    SFTP_REQUEST_CHUNK_SIZE_IN_BYTES,
 )
 
 
@@ -31,6 +32,12 @@ class SecureFileTransferService:
             SECURE_FILE_TRANSFER_USERNAME,
             SECURE_FILE_TRANSFER_PASSWORD,
         )
+
+        # Unica modificacion respecto a los valores por defecto de paramiko: peticiones
+        # SFTP mas grandes para reducir la cantidad de peticiones despachadas durante el
+        # prefetch en archivos grandes. No se toca la ventana de flujo del transporte.
+        paramiko.SFTPFile.MAX_REQUEST_SIZE = SFTP_REQUEST_CHUNK_SIZE_IN_BYTES
+
         self.secure_file_transfer_client = self.secure_shell_client.open_sftp()
 
     def list_remote_text_file_names(self, remote_directory_path):
