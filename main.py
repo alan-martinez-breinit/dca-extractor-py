@@ -4,6 +4,7 @@ import paramiko
 import os
 from pathlib import Path
 import threading
+import time
 
 class DCAExtractor:
     def __init__(self, root):
@@ -97,14 +98,32 @@ class DCAExtractor:
                 self.button.config(state="normal")
                 return
 
+            # Calcular tamaño total
+            total_size = sum(sftp.stat(f).st_size for f in txt_files)
+            self.log(f"✓ Tamaño total: {total_size / 1024 / 1024:.2f} MB")
+
             self.update_status(f"Descargando {len(txt_files)} archivos...")
             self.log(f"✓ Encontrados {len(txt_files)} archivos .txt")
 
+            start_time = time.time()
+            downloaded_size = 0
+
             for i, filename in enumerate(txt_files):
                 local_file = os.path.join(self.LOCAL_PATH, filename)
+                file_size = sftp.stat(filename).st_size
+
                 with open(local_file, "wb") as f:
                     sftp.getfo(filename, f)
-                self.log(f"✓ Descargado: {filename}")
+
+                downloaded_size += file_size
+                elapsed = time.time() - start_time
+                speed = downloaded_size / elapsed if elapsed > 0 else 0
+                remaining_size = total_size - downloaded_size
+                eta = remaining_size / speed if speed > 0 else 0
+
+                self.log(f"✓ Descargado: {filename} ({file_size / 1024:.2f} KB)")
+                self.log(f"  Velocidad: {speed / 1024 / 1024:.2f} MB/s | ETA: {int(eta)} seg")
+
                 progress = ((i + 1) / len(txt_files)) * 100
                 self.progress_var.set(progress)
                 self.draw_progress()
