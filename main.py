@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import messagebox, scrolledtext
 import paramiko
 import os
-import json
 from pathlib import Path
 import threading
 import time
@@ -89,73 +88,47 @@ class DCAExtractor:
             self.log("✓ Accediendo a carpeta de descargas")
 
             files = sftp.listdir()
-            txt_files = [f for f in files if f.endswith(".txt")]
+            jsonl_files = [f for f in files if f.endswith(".jsonl")]
 
-            if not txt_files:
-                self.update_status("⚠ No hay archivos .txt")
-                self.log("No se encontraron archivos .txt")
+            if not jsonl_files:
+                self.update_status("⚠ No hay archivos .jsonl")
+                self.log("No se encontraron archivos .jsonl")
                 sftp.close()
                 ssh.close()
                 self.button.config(state="normal")
                 return
 
             # Calcular tamaño total
-            total_size = sum(sftp.stat(f).st_size for f in txt_files)
+            total_size = sum(sftp.stat(f).st_size for f in jsonl_files)
             self.log(f"✓ Tamaño total: {total_size / 1024 / 1024:.2f} MB")
 
-            self.update_status(f"Descargando {len(txt_files)} archivos...")
-            self.log(f"✓ Encontrados {len(txt_files)} archivos .txt")
+            self.update_status(f"Descargando {len(jsonl_files)} archivos...")
+            self.log(f"✓ Encontrados {len(jsonl_files)} archivos .jsonl")
 
             start_time = time.time()
             downloaded_size = 0
 
-            for i, filename in enumerate(txt_files):
-                jsonl_name = Path(filename).stem + ".jsonl"
-                local_file = os.path.join(self.LOCAL_PATH, jsonl_name)
+            for i, filename in enumerate(jsonl_files):
+                local_file = os.path.join(self.LOCAL_PATH, filename)
                 file_size = sftp.stat(filename).st_size
 
                 self.log(f"↓ Descargando: {filename} ({file_size / 1024 / 1024:.2f} MB)")
 
                 bytes_read = 0
-                headers = None
-                buffer = ""
-                rows_written = 0
 
-                with open(local_file, "w", encoding="utf-8") as out_f:
+                with open(local_file, "wb") as out_f:
                     with sftp.file(filename, "r") as remote_file:
                         while True:
                             chunk = remote_file.read(1024 * 256)  # 256 KB chunks
                             if not chunk:
                                 break
+                            out_f.write(chunk)
                             bytes_read += len(chunk)
-                            buffer += chunk.decode("utf-8", errors="replace")
-
-                            lines = buffer.split("\n")
-                            buffer = lines.pop()  # línea incompleta, se conserva para el próximo chunk
-
-                            for line in lines:
-                                line = line.rstrip("\r")
-                                if not line:
-                                    continue
-                                if headers is None:
-                                    headers = line.split("|")
-                                    continue
-                                values = line.split("|")
-                                row = dict(zip(headers, values))
-                                out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
-                                rows_written += 1
 
                             # Progreso en tiempo real
                             file_progress = (bytes_read / file_size) * 100
                             self.log(f"  {filename}: {file_progress:.1f}% ({bytes_read / 1024 / 1024:.2f}/{file_size / 1024 / 1024:.2f} MB)")
                             self.root.update()
-
-                    # Procesar última línea si quedó pendiente en el buffer
-                    if buffer.strip() and headers is not None:
-                        values = buffer.rstrip("\r").split("|")
-                        row = dict(zip(headers, values))
-                        out_f.write(json.dumps(row, ensure_ascii=False) + "\n")
-                        rows_written += 1
 
                 downloaded_size += file_size
                 elapsed = time.time() - start_time
@@ -163,13 +136,13 @@ class DCAExtractor:
                 remaining_size = total_size - downloaded_size
                 eta = remaining_size / speed if speed > 0 else 0
 
-                self.log(f"✓ Completado: {jsonl_name} ({rows_written} registros)")
+                self.log(f"✓ Completado: {filename}")
                 self.log(f"  Velocidad: {speed / 1024 / 1024:.2f} MB/s | ETA: {int(eta)} seg\n")
 
-                progress = ((i + 1) / len(txt_files)) * 100
+                progress = ((i + 1) / len(jsonl_files)) * 100
                 self.progress_var.set(progress)
                 self.draw_progress()
-                self.update_status(f"Descargando {i + 1}/{len(txt_files)} archivos...")
+                self.update_status(f"Descargando {i + 1}/{len(jsonl_files)} archivos...")
 
             sftp.close()
             ssh.close()
