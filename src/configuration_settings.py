@@ -1,10 +1,15 @@
+import os
+
 SECURE_FILE_TRANSFER_HOST_ADDRESS = "169.62.217.83"
 SECURE_FILE_TRANSFER_PORT_NUMBER = 22
 SECURE_FILE_TRANSFER_USERNAME = "ftpdca"
 SECURE_FILE_TRANSFER_PASSWORD = "ftpDC@2023"
 REMOTE_DIRECTORY_PATH = "/ALANPRUEBAS/FTPIA/Autopolis"
 
-LOCAL_BASE_DIRECTORY_PATH = r"C:\Users\Breinit\Documents\DCA"
+# Se calcula a partir del usuario que ejecuta el .exe en cada maquina, para que
+# funcione igual sin importar el nombre de usuario de Windows del cliente.
+CURRENT_USER_DOCUMENTS_DIRECTORY_PATH = os.path.join(os.path.expanduser("~"), "Documents")
+LOCAL_BASE_DIRECTORY_PATH = os.path.join(CURRENT_USER_DOCUMENTS_DIRECTORY_PATH, "DCA")
 LOCAL_CLIENT_SUBDIRECTORY_NAME = "autopolis"
 
 REMOTE_FILE_EXTENSION_FILTER = ".txt"
