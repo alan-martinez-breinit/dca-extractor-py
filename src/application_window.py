@@ -5,21 +5,21 @@ import time
 import tkinter
 from tkinter import font as tkinter_font
 
-from color_palette import COLOR_PALETTE, LOG_TITLE_BAR_INDICATOR_COLORS
-from canvas_drawing_helpers import draw_rounded_rectangle
-from configuration_settings import (
+from src.color_palette import COLOR_PALETTE, LOG_TITLE_BAR_INDICATOR_COLORS
+from src.canvas_drawing_helpers import draw_rounded_rectangle
+from src.configuration_settings import (
     REMOTE_DIRECTORY_PATH,
     LOCAL_BASE_DIRECTORY_PATH,
     LOCAL_CLIENT_SUBDIRECTORY_NAME,
     PROGRESS_LOG_STEP_PERCENTAGE,
     INTERFACE_UPDATE_STEP_PERCENTAGE,
 )
-from filesystem_helpers import (
+from src.filesystem_helpers import (
     ensure_base_directory_exists,
     ensure_client_subdirectory_exists,
     local_file_with_matching_name_exists,
 )
-from secure_file_transfer_service import SecureFileTransferService
+from src.secure_file_transfer_service import SecureFileTransferService
 
 
 class DCAExtractorApplicationWindow:

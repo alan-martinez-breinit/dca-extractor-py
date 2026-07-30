@@ -1,6 +1,6 @@
 import tkinter
 
-from application_window import DCAExtractorApplicationWindow
+from src.application_window import DCAExtractorApplicationWindow
 
 if __name__ == "__main__":
     root_window = tkinter.Tk()

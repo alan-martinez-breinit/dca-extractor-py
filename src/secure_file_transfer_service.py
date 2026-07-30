@@ -2,7 +2,7 @@ import os
 
 import paramiko
 
-from configuration_settings import (
+from src.configuration_settings import (
     SECURE_FILE_TRANSFER_HOST_ADDRESS,
     SECURE_FILE_TRANSFER_PORT_NUMBER,
     SECURE_FILE_TRANSFER_USERNAME,

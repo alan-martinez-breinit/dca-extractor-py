@@ -5,12 +5,12 @@ Descarga de archivos `.txt` desde servidor SFTP remoto hacia una carpeta local d
 ## Estructura del proyecto
 
 - `main.py` — punto de entrada, crea la ventana principal
-- `application_window.py` — construcción de la interfaz gráfica y orquestación de la descarga
-- `secure_file_transfer_service.py` — conexión y transferencia de archivos SFTP (sin dependencias de UI)
-- `filesystem_helpers.py` — verificación y creación de carpeta base, subcarpeta y archivos locales
-- `canvas_drawing_helpers.py` — utilidades de dibujo (rectángulos redondeados)
-- `color_palette.py` — paleta de colores de la interfaz
-- `configuration_settings.py` — credenciales, rutas y parámetros de configuración
+- `src/application_window.py` — construcción de la interfaz gráfica y orquestación de la descarga
+- `src/secure_file_transfer_service.py` — conexión y transferencia de archivos SFTP (sin dependencias de UI)
+- `src/filesystem_helpers.py` — verificación y creación de carpeta base, subcarpeta y archivos locales
+- `src/canvas_drawing_helpers.py` — utilidades de dibujo (rectángulos redondeados)
+- `src/color_palette.py` — paleta de colores de la interfaz
+- `src/configuration_settings.py` — credenciales, rutas y parámetros de configuración
 
 ## Requisitos
 
