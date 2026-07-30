@@ -11,8 +11,8 @@ from configuration_settings import (
     REMOTE_DIRECTORY_PATH,
     LOCAL_BASE_DIRECTORY_PATH,
     LOCAL_CLIENT_SUBDIRECTORY_NAME,
-    DOWNLOAD_CHUNK_SIZE_IN_BYTES,
     PROGRESS_LOG_STEP_PERCENTAGE,
+    INTERFACE_UPDATE_STEP_PERCENTAGE,
 )
 from filesystem_helpers import (
     ensure_base_directory_exists,
@@ -262,31 +262,31 @@ class DCAExtractorApplicationWindow:
                 self.append_log_entry("La subcarpeta del cliente ya existia, no se realizaron cambios", "normal_tag")
 
             self.append_log_entry("Accediendo a carpeta de descargas", "success_tag")
-            remote_jsonl_file_names = secure_file_transfer_service.list_remote_jsonl_file_names(REMOTE_DIRECTORY_PATH)
+            remote_text_file_names = secure_file_transfer_service.list_remote_text_file_names(REMOTE_DIRECTORY_PATH)
 
-            if not remote_jsonl_file_names:
-                self.update_status_message("No hay archivos .jsonl")
+            if not remote_text_file_names:
+                self.update_status_message("No hay archivos .txt")
                 self.update_progress_label_message("Sin archivos")
-                self.append_log_entry("No se encontraron archivos .jsonl", "error_tag")
+                self.append_log_entry("No se encontraron archivos .txt", "error_tag")
                 secure_file_transfer_service.disconnect_from_remote_server()
                 self.finish_download_process()
                 return
 
             total_size_in_bytes_of_all_files = sum(
                 secure_file_transfer_service.get_remote_file_size_in_bytes(remote_file_name)
-                for remote_file_name in remote_jsonl_file_names
+                for remote_file_name in remote_text_file_names
             )
             self.append_log_entry(
                 f"Tamano total: {total_size_in_bytes_of_all_files / 1024 / 1024:.2f} MB", "normal_tag")
             self.append_log_entry(
-                f"Encontrados {len(remote_jsonl_file_names)} archivos .jsonl", "success_tag")
+                f"Encontrados {len(remote_text_file_names)} archivos .txt", "success_tag")
 
             workflow_start_time = time.time()
             total_bytes_downloaded_so_far = 0
 
-            for current_file_index, remote_file_name in enumerate(remote_jsonl_file_names):
+            for current_file_index, remote_file_name in enumerate(remote_text_file_names):
                 self.update_progress_label_message(
-                    f"Descargando {current_file_index + 1}/{len(remote_jsonl_file_names)} archivos...")
+                    f"Descargando {current_file_index + 1}/{len(remote_text_file_names)} archivos...")
 
                 if local_file_with_matching_name_exists(local_destination_directory_path, remote_file_name):
                     self.append_log_entry(
@@ -302,12 +302,22 @@ class DCAExtractorApplicationWindow:
                     "highlight_tag")
 
                 last_logged_percentage_for_this_file = -PROGRESS_LOG_STEP_PERCENTAGE
+                last_reported_overall_percentage = -INTERFACE_UPDATE_STEP_PERCENTAGE
 
                 def handle_chunk_downloaded(bytes_downloaded_for_current_file, current_file_size_in_bytes,
                                              remote_file_name=remote_file_name):
-                    nonlocal last_logged_percentage_for_this_file
+                    nonlocal last_logged_percentage_for_this_file, last_reported_overall_percentage
                     current_file_progress_percentage = (
                         bytes_downloaded_for_current_file / current_file_size_in_bytes) * 100
+                    overall_progress_percentage = (
+                        (total_bytes_downloaded_so_far + bytes_downloaded_for_current_file)
+                        / total_size_in_bytes_of_all_files) * 100
+
+                    is_file_complete = bytes_downloaded_for_current_file >= current_file_size_in_bytes
+                    if (overall_progress_percentage - last_reported_overall_percentage
+                            < INTERFACE_UPDATE_STEP_PERCENTAGE and not is_file_complete):
+                        return
+                    last_reported_overall_percentage = overall_progress_percentage
 
                     if (current_file_progress_percentage - last_logged_percentage_for_this_file
                             >= PROGRESS_LOG_STEP_PERCENTAGE or current_file_progress_percentage >= 100):
@@ -317,15 +327,11 @@ class DCAExtractorApplicationWindow:
                             f"({bytes_downloaded_for_current_file / 1024 / 1024:.2f}/"
                             f"{current_file_size_in_bytes / 1024 / 1024:.2f} MB)", "normal_tag")
 
-                    overall_progress_percentage = (
-                        (total_bytes_downloaded_so_far + bytes_downloaded_for_current_file)
-                        / total_size_in_bytes_of_all_files) * 100
                     self.update_progress_bar(overall_progress_percentage)
                     self.root_window.update_idletasks()
 
                 downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
-                    remote_file_name, local_destination_directory_path, DOWNLOAD_CHUNK_SIZE_IN_BYTES,
-                    handle_chunk_downloaded)
+                    remote_file_name, local_destination_directory_path, handle_chunk_downloaded)
 
                 total_bytes_downloaded_so_far += downloaded_file_size_in_bytes
                 elapsed_time_in_seconds = time.time() - workflow_start_time

@@ -33,7 +33,7 @@ class SecureFileTransferService:
         )
         self.secure_file_transfer_client = self.secure_shell_client.open_sftp()
 
-    def list_remote_jsonl_file_names(self, remote_directory_path):
+    def list_remote_text_file_names(self, remote_directory_path):
         self.secure_file_transfer_client.chdir(remote_directory_path)
         all_remote_file_names = self.secure_file_transfer_client.listdir()
         return [
@@ -46,20 +46,21 @@ class SecureFileTransferService:
         return self.secure_file_transfer_client.stat(remote_file_name).st_size
 
     def download_remote_file_with_progress(self, remote_file_name, local_destination_directory_path,
-                                            chunk_size_in_bytes, on_chunk_downloaded_callback):
+                                            on_chunk_downloaded_callback):
+        """Descarga usando prefetch: paramiko encola muchas lecturas en paralelo
+        en lugar de esperar la respuesta de red de cada lectura antes de pedir la siguiente.
+        Esto reduce drasticamente el tiempo total en conexiones con latencia (VPN/SFTP remoto).
+        """
         local_destination_file_path = os.path.join(local_destination_directory_path, remote_file_name)
         remote_file_size_in_bytes = self.get_remote_file_size_in_bytes(remote_file_name)
-        total_bytes_downloaded_for_this_file = 0
 
         with open(local_destination_file_path, "wb") as local_output_file_handle:
-            with self.secure_file_transfer_client.file(remote_file_name, "r") as remote_file_handle:
-                while True:
-                    downloaded_chunk = remote_file_handle.read(chunk_size_in_bytes)
-                    if not downloaded_chunk:
-                        break
-                    local_output_file_handle.write(downloaded_chunk)
-                    total_bytes_downloaded_for_this_file += len(downloaded_chunk)
-                    on_chunk_downloaded_callback(total_bytes_downloaded_for_this_file, remote_file_size_in_bytes)
+            self.secure_file_transfer_client.getfo(
+                remote_file_name,
+                local_output_file_handle,
+                callback=on_chunk_downloaded_callback,
+                prefetch=True,
+            )
 
         return remote_file_size_in_bytes
 
