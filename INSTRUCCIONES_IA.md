@@ -19,6 +19,12 @@ Los nombres de archivo siguen un patrón por área de negocio. Úsalo para infer
 - Contiene `servicio` — órdenes de taller / servicio postventa.
 - Contiene `refacciones` — refacciones y partes.
 
+## Codificación de caracteres y acentos
+
+- `schema.ini` especifica un `CharacterSet` distinto por archivo (`ANSI` u `OEM`, según el sistema de origen). No todos los archivos usan la misma codificación.
+- Por eso, palabras con acentos, `ñ`, o signos como `¿`/`¡` pueden llegar mal interpretadas (por ejemplo `María` mostrado como `MarÃ­a`, o caracteres sueltos como `�`). Esto es un problema de codificación, no un dato real.
+- Si detectas ese tipo de secuencias, no las trates como el valor verdadero ni inventes cuál sería la palabra correcta si no es evidente. Señala que el texto parece tener un problema de codificación y, si el significado es claro por contexto (nombres de sucursal, meses, etc.), acláralo explícitamente en tu respuesta en lugar de repetir el texto corrupto sin comentario.
+
 ## Campos comunes para cruzar información entre archivos
 
 Verifica en `schema.ini` cuáles de estos campos existen en los archivos que vas a cruzar:
