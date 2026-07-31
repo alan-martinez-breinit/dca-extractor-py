@@ -25,6 +25,12 @@ Los nombres de archivo siguen un patrón por área de negocio. Úsalo para infer
 - Por eso, palabras con acentos, `ñ`, o signos como `¿`/`¡` pueden llegar mal interpretadas (por ejemplo `María` mostrado como `MarÃ­a`, o caracteres sueltos como `�`). Esto es un problema de codificación, no un dato real.
 - Si detectas ese tipo de secuencias, no las trates como el valor verdadero ni inventes cuál sería la palabra correcta si no es evidente. Señala que el texto parece tener un problema de codificación y, si el significado es claro por contexto (nombres de sucursal, meses, etc.), acláralo explícitamente en tu respuesta en lugar de repetir el texto corrupto sin comentario.
 
+## Signos y formato numérico
+
+- Las columnas `Float` de `schema.ini` guardan el valor plano, sin símbolo de moneda ni separadores de miles (por ejemplo `350000.5`, no `$350,000.50`). Si vas a mostrar montos al usuario, agrega tú el formato (`$`, separadores de miles) al presentarlo — no esperes encontrarlo así en el archivo.
+- Si en algún archivo encuentras un valor con signos incrustados (`$`, `%`, comas de miles) dentro de una columna, quítalos antes de hacer cualquier cálculo numérico; no son parte del valor real.
+- Para columnas cuyo nombre sugiere porcentaje (`pct`, `Porcentaje`, etc.), confirma con los datos si ya vienen en escala de porcentaje (`5.0` = 5%) o como fracción (`0.05` = 5%) antes de usarlos en un cálculo — no lo asumas.
+
 ## Campos comunes para cruzar información entre archivos
 
 Verifica en `schema.ini` cuáles de estos campos existen en los archivos que vas a cruzar:
