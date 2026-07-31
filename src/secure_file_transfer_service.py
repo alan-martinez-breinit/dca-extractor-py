@@ -13,11 +13,6 @@ from src.configuration_settings import (
 
 
 class SecureFileTransferService:
-    """Encapsula la conexion y transferencia de archivos por SFTP.
-
-    No conoce nada sobre la interfaz grafica: expone metodos simples
-    que la capa de presentacion puede orquestar e informar mediante callbacks.
-    """
 
     def __init__(self):
         self.secure_shell_client = None
@@ -33,11 +28,7 @@ class SecureFileTransferService:
             SECURE_FILE_TRANSFER_PASSWORD,
         )
 
-        # Unica modificacion respecto a los valores por defecto de paramiko: peticiones
-        # SFTP mas grandes para reducir la cantidad de peticiones despachadas durante el
-        # prefetch en archivos grandes. No se toca la ventana de flujo del transporte.
         paramiko.SFTPFile.MAX_REQUEST_SIZE = SFTP_REQUEST_CHUNK_SIZE_IN_BYTES
-
         self.secure_file_transfer_client = self.secure_shell_client.open_sftp()
 
     def list_remote_text_file_names(self, remote_directory_path):
@@ -54,10 +45,6 @@ class SecureFileTransferService:
 
     def download_remote_file_with_progress(self, remote_file_name, remote_file_size_in_bytes,
                                             local_destination_directory_path, on_chunk_downloaded_callback):
-        """Descarga usando prefetch: paramiko encola muchas lecturas en paralelo
-        en lugar de esperar la respuesta de red de cada lectura antes de pedir la siguiente.
-        Esto reduce drasticamente el tiempo total en conexiones con latencia (VPN/SFTP remoto).
-        """
         local_destination_file_path = os.path.join(local_destination_directory_path, remote_file_name)
 
         with open(local_destination_file_path, "wb") as local_output_file_handle:

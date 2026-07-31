@@ -42,9 +42,6 @@ def is_date_value(candidate_value):
 
 
 def infer_jet_column_type_and_width(sample_values_for_column):
-    """Determina el tipo Jet (Integer/Float/Date/Char) de una columna a partir de
-    valores reales muestreados del archivo, en lugar de adivinar por el nombre.
-    """
     non_empty_sample_values = [value for value in sample_values_for_column if value != ""]
     if not non_empty_sample_values:
         return "Char", MINIMUM_CHARACTER_COLUMN_WIDTH
@@ -106,9 +103,6 @@ def build_schema_ini_section_for_file(local_file_path, file_name):
 
 
 def generate_schema_ini_file(local_destination_directory_path, downloaded_file_names):
-    """Genera schema.ini junto a los .txt descargados: describe cada columna con su
-    nombre real (tomado del encabezado) y su tipo inferido a partir de los datos.
-    """
     schema_ini_file_path = os.path.join(local_destination_directory_path, "schema.ini")
 
     file_sections = [
