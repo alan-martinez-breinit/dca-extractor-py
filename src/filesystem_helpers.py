@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 
@@ -35,3 +36,15 @@ def local_file_with_matching_name_exists(destination_directory_path, remote_file
     """
     destination_file_path = os.path.join(destination_directory_path, remote_file_name)
     return os.path.isfile(destination_file_path)
+
+
+def copy_static_file_to_destination(source_file_path, destination_directory_path):
+    """Copia un archivo estatico ya existente (no genera contenido) a la carpeta
+    de destino. Retorna True si se copio, False si el archivo de origen no existe.
+    """
+    if not os.path.isfile(source_file_path):
+        return False
+    file_name = os.path.basename(source_file_path)
+    destination_file_path = os.path.join(destination_directory_path, file_name)
+    shutil.copyfile(source_file_path, destination_file_path)
+    return True

@@ -13,11 +13,14 @@ from src.configuration_settings import (
     LOCAL_CLIENT_SUBDIRECTORY_NAME,
     PROGRESS_LOG_STEP_PERCENTAGE,
     INTERFACE_UPDATE_STEP_PERCENTAGE,
+    APPLICATION_ROOT_DIRECTORY_PATH,
+    AI_INSTRUCTIONS_SOURCE_FILE_NAME,
 )
 from src.filesystem_helpers import (
     ensure_base_directory_exists,
     ensure_client_subdirectory_exists,
     local_file_with_matching_name_exists,
+    copy_static_file_to_destination,
 )
 from src.secure_file_transfer_service import SecureFileTransferService
 from src.schema_ini_generator import generate_schema_ini_file
@@ -362,6 +365,17 @@ class DCAExtractorApplicationWindow:
             downloaded_file_names = [file_name for file_name, _ in remote_files_with_sizes_ascending]
             generate_schema_ini_file(local_destination_directory_path, downloaded_file_names)
             self.append_log_entry("schema.ini generado exitosamente", "success_tag")
+
+            ai_instructions_source_path = os.path.join(
+                APPLICATION_ROOT_DIRECTORY_PATH, AI_INSTRUCTIONS_SOURCE_FILE_NAME)
+            ai_instructions_file_was_copied = copy_static_file_to_destination(
+                ai_instructions_source_path, local_destination_directory_path)
+            if ai_instructions_file_was_copied:
+                self.append_log_entry(f"{AI_INSTRUCTIONS_SOURCE_FILE_NAME} copiado exitosamente", "success_tag")
+            else:
+                self.append_log_entry(
+                    f"{AI_INSTRUCTIONS_SOURCE_FILE_NAME} no encontrado junto al programa, se omitio",
+                    "normal_tag")
 
             self.update_status_message("Descarga completada")
             self.update_progress_label_message("Transferencia finalizada")
