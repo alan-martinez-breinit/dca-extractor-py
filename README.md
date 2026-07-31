@@ -33,7 +33,7 @@ python main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "Breinit_DCA_Extractor" --icon dca_icon.ico main.py
+pyinstaller --onefile --windowed --name "Breinit_DCA_Extractor" --icon dca_icon.ico --add-data "INSTRUCCIONES_IA.md;." main.py
 ```
 
-Ejecutable en: `dist/Breinit_DCA_Extractor.exe`. Copia `INSTRUCCIONES_IA.md` a esa misma carpeta antes de entregar el `.exe` al cliente — el programa lo busca junto a sí mismo.
+Ejecutable en: `dist/Breinit_DCA_Extractor.exe`. `INSTRUCCIONES_IA.md` queda empaquetado dentro del `.exe` (vía `--add-data`), así que no depende de viajar junto al archivo. Si de todas formas se coloca una copia junto al `.exe`, esa copia externa tiene prioridad — útil para actualizar el contenido sin recompilar.
