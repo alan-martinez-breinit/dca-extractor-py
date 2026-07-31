@@ -23,10 +23,14 @@ def local_file_with_matching_name_exists(destination_directory_path, remote_file
     return os.path.isfile(destination_file_path)
 
 
-def copy_static_file_to_destination(source_file_path, destination_directory_path):
-    if not os.path.isfile(source_file_path):
-        return False
-    file_name = os.path.basename(source_file_path)
-    destination_file_path = os.path.join(destination_directory_path, file_name)
-    shutil.copyfile(source_file_path, destination_file_path)
-    return True
+def copy_first_available_static_file(candidate_source_directories, file_name, destination_directory_path):
+    """Busca file_name en cada carpeta candidata, en orden, y copia la primera
+    que exista. Retorna True si se copio, False si no se encontro en ninguna.
+    """
+    for candidate_directory_path in candidate_source_directories:
+        candidate_source_file_path = os.path.join(candidate_directory_path, file_name)
+        if os.path.isfile(candidate_source_file_path):
+            destination_file_path = os.path.join(destination_directory_path, file_name)
+            shutil.copyfile(candidate_source_file_path, destination_file_path)
+            return True
+    return False

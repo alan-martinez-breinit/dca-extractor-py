@@ -14,10 +14,17 @@ REMOTE_FILE_EXTENSION_FILTER = ".txt"
 
 if getattr(sys, "frozen", False):
     APPLICATION_ROOT_DIRECTORY_PATH = os.path.dirname(sys.executable)
+    BUNDLED_RESOURCES_DIRECTORY_PATH = getattr(sys, "_MEIPASS", APPLICATION_ROOT_DIRECTORY_PATH)
 else:
     APPLICATION_ROOT_DIRECTORY_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    BUNDLED_RESOURCES_DIRECTORY_PATH = APPLICATION_ROOT_DIRECTORY_PATH
 
 AI_INSTRUCTIONS_SOURCE_FILE_NAME = "INSTRUCCIONES_IA.md"
+
+# Orden de busqueda para el archivo de instrucciones de IA: primero junto al .exe
+# (permite reemplazarlo sin recompilar), y como respaldo, la copia empaquetada
+# dentro del propio ejecutable (para que nunca falte si alguien mueve solo el .exe).
+AI_INSTRUCTIONS_SEARCH_DIRECTORIES = (APPLICATION_ROOT_DIRECTORY_PATH, BUNDLED_RESOURCES_DIRECTORY_PATH)
 
 PROGRESS_LOG_STEP_PERCENTAGE = 5
 INTERFACE_UPDATE_STEP_PERCENTAGE = 0.5
