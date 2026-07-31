@@ -7,10 +7,10 @@ SECURE_FILE_TRANSFER_USERNAME = "ftpdca"
 SECURE_FILE_TRANSFER_PASSWORD = "ftpDC@2023"
 REMOTE_DIRECTORY_PATH = "/ALANPRUEBAS/FTPIA/Autopolis"
 
-# Se calcula a partir del usuario que ejecuta el .exe en cada maquina, para que
-# funcione igual sin importar el nombre de usuario de Windows del cliente.
-CURRENT_USER_DOCUMENTS_DIRECTORY_PATH = os.path.join(os.path.expanduser("~"), "Documents")
-LOCAL_BASE_DIRECTORY_PATH = os.path.join(CURRENT_USER_DOCUMENTS_DIRECTORY_PATH, "DCA")
+# Raiz de la unidad del sistema (normalmente "C:\"), calculada dinamicamente para
+# no asumir la letra de unidad en la maquina de cada cliente.
+SYSTEM_DRIVE_ROOT_PATH = os.environ.get("SystemDrive", "C:") + os.sep
+LOCAL_BASE_DIRECTORY_PATH = os.path.join(SYSTEM_DRIVE_ROOT_PATH, "DCA")
 LOCAL_CLIENT_SUBDIRECTORY_NAME = "autopolis"
 
 REMOTE_FILE_EXTENSION_FILTER = ".txt"

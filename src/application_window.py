@@ -30,7 +30,7 @@ class DCAExtractorApplicationWindow:
     def __init__(self, root_window):
         self.root_window = root_window
         self.root_window.title("Breinit DCA Extractor")
-        self.root_window.geometry("640x760")
+        self.root_window.geometry("640x790")
         self.root_window.resizable(False, False)
         self.root_window.configure(bg=COLOR_PALETTE["background_color"])
 
@@ -71,11 +71,11 @@ class DCAExtractorApplicationWindow:
         wrapper_frame = tkinter.Frame(self.root_window, bg=COLOR_PALETTE["background_color"])
         wrapper_frame.pack(fill="x", padx=20, pady=(20, 12))
 
-        self.hero_canvas = tkinter.Canvas(wrapper_frame, width=600, height=300,
+        self.hero_canvas = tkinter.Canvas(wrapper_frame, width=600, height=330,
                                            bg=COLOR_PALETTE["background_color"], highlightthickness=0)
         self.hero_canvas.pack()
 
-        draw_rounded_rectangle(self.hero_canvas, 0, 0, 600, 300, corner_radius=16,
+        draw_rounded_rectangle(self.hero_canvas, 0, 0, 600, 330, corner_radius=16,
                                 fill=COLOR_PALETTE["surface_lowest_color"],
                                 outline=COLOR_PALETTE["outline_variant_color"])
 
@@ -122,6 +122,23 @@ class DCAExtractorApplicationWindow:
             self.hero_canvas.tag_bind(clickable_item_id, "<Enter>",
                                        lambda event: self.hero_canvas.config(cursor="hand2"))
             self.hero_canvas.tag_bind(clickable_item_id, "<Leave>", lambda event: self.hero_canvas.config(cursor=""))
+
+        destination_path_row_y = 300
+        self.destination_directory_path_for_clipboard = os.path.join(
+            LOCAL_BASE_DIRECTORY_PATH, LOCAL_CLIENT_SUBDIRECTORY_NAME)
+        self.destination_path_text_item_id = self.hero_canvas.create_text(
+            30, destination_path_row_y,
+            text=f"Se guardara en: {self.destination_directory_path_for_clipboard}",
+            font=self.application_fonts["body_font"], fill=COLOR_PALETTE["on_surface_variant_color"], anchor="w")
+
+        self.copy_path_icon_item_id = self.hero_canvas.create_text(
+            570, destination_path_row_y, text="📋", font=("Segoe UI Emoji", 12), anchor="e")
+
+        self.hero_canvas.tag_bind(self.copy_path_icon_item_id, "<Button-1>", self.handle_copy_path_click)
+        self.hero_canvas.tag_bind(self.copy_path_icon_item_id, "<Enter>",
+                                   lambda event: self.hero_canvas.config(cursor="hand2"))
+        self.hero_canvas.tag_bind(self.copy_path_icon_item_id, "<Leave>",
+                                   lambda event: self.hero_canvas.config(cursor=""))
 
     def build_transfer_log_card(self):
         wrapper_frame = tkinter.Frame(self.root_window, bg=COLOR_PALETTE["background_color"])
@@ -213,6 +230,17 @@ class DCAExtractorApplicationWindow:
 
         self.hero_canvas.itemconfig(self.progress_percentage_item_id,
                                      text=f"{int(self.current_progress_percentage)}%")
+
+    def update_destination_path_message(self, destination_path_message):
+        self.hero_canvas.itemconfig(self.destination_path_text_item_id, text=destination_path_message)
+
+    def handle_copy_path_click(self, event=None):
+        self.root_window.clipboard_clear()
+        self.root_window.clipboard_append(self.destination_directory_path_for_clipboard)
+        self.root_window.update()
+        self.append_log_entry("Ruta copiada al portapapeles", "success_tag")
+        self.hero_canvas.itemconfig(self.copy_path_icon_item_id, text="✓")
+        self.root_window.after(1200, lambda: self.hero_canvas.itemconfig(self.copy_path_icon_item_id, text="📋"))
 
     def update_download_button_state(self, is_enabled, button_text=None):
         button_fill_color = COLOR_PALETTE["primary_color"] if is_enabled else COLOR_PALETTE["outline_variant_color"]
@@ -379,6 +407,7 @@ class DCAExtractorApplicationWindow:
 
             self.update_status_message("Descarga completada")
             self.update_progress_label_message("Transferencia finalizada")
+            self.update_destination_path_message(f"Guardado en: {local_destination_directory_path}")
             self.append_log_entry("Completado exitosamente", "success_tag")
             self.update_progress_bar(100)
 
