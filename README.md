@@ -33,7 +33,7 @@ python main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed main.py
+pyinstaller --onefile --windowed --name "Breinit_DCA_Extractor" --icon dca_icon.ico main.py
 ```
 
-Ejecutable en: `dist/main.exe`
+Ejecutable en: `dist/Breinit_DCA_Extractor.exe`. Copia `INSTRUCCIONES_IA.md` a esa misma carpeta antes de entregar el `.exe` al cliente — el programa lo busca junto a sí mismo.
