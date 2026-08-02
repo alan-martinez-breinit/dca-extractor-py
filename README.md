@@ -1,39 +1,56 @@
-# Breinit DCA Extractor (Python)
+# DCA FTP — Herramienta de Extracción Automática de Datos
 
-Descarga de archivos `.txt` desde servidor SFTP remoto hacia una carpeta local del cliente, usando prefetch para maximizar la velocidad de transferencia. Al terminar, genera un `schema.ini` junto a los archivos descargados describiendo columnas y tipos de cada uno, para que una IA (o Jet/Access) pueda interpretarlos sin ambigüedad.
+Descargador SFTP rápido y seguro con inferencia automática de esquema. Descarga archivos `.txt` desde servidores DCA remotos (Dealer Consulting Application) y genera metadatos de esquema para procesamiento asistido por IA.
 
-## Estructura del proyecto
+## Características
 
-- `main.py` — punto de entrada, crea la ventana principal
-- `src/application_window.py` — construcción de la interfaz gráfica y orquestación de la descarga
-- `src/secure_file_transfer_service.py` — conexión y transferencia de archivos SFTP (sin dependencias de UI)
-- `src/filesystem_helpers.py` — verificación y creación de carpeta base, subcarpeta y archivos locales
-- `src/schema_ini_generator.py` — genera `schema.ini` describiendo columnas y tipos inferidos de cada `.txt` descargado
-- `src/canvas_drawing_helpers.py` — utilidades de dibujo (rectángulos redondeados)
-- `src/color_palette.py` — paleta de colores de la interfaz
-- `src/configuration_settings.py` — credenciales, rutas y parámetros de configuración
+- **Transferencia SFTP Segura** — Prefetch paralelo para descargas de alta velocidad
+- **Generación Automática de Esquema** — Infiere tipos de columnas (Integer, Float, Date, Char) desde muestras de datos
+- **Listo para IA** — Genera `schema.ini` para interpretación sin ambigüedad
+- **GUI Nativa** — Interfaz Tkinter multiplataforma con seguimiento de progreso en tiempo real
+- **Ejecutable Único** — Compilación PyInstaller con documentación embebida
 
-## Requisitos
+## Inicio Rápido
 
+### Requisitos Previos
 - Python 3.8+
+- Credenciales de servidor SFTP (configuradas en `src/configuration_settings.py`)
 
-## Instalación
+### Instalación y Ejecución
 
 ```bash
 pip install -r requirements.txt
-```
-
-## Ejecución
-
-```bash
 python main.py
 ```
 
-## Compilar a .exe
+### Compilar Ejecutable Independiente
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "Breinit_DCA_Extractor" --icon dca_icon.ico --add-data "INSTRUCCIONES_IA.md;." main.py
+pyinstaller --onefile --windowed --name "DCA_FTP" --icon dca_icon.ico --add-data "INSTRUCCIONES_IA.md;." main.py
 ```
 
-Ejecutable en: `dist/Breinit_DCA_Extractor.exe`. `INSTRUCCIONES_IA.md` queda empaquetado dentro del `.exe` (vía `--add-data`), así que no depende de viajar junto al archivo. Si de todas formas se coloca una copia junto al `.exe`, esa copia externa tiene prioridad — útil para actualizar el contenido sin recompilar.
+Ejecutable: `dist/DCA_FTP.exe`
+
+El archivo `INSTRUCCIONES_IA.md` se embebe en el `.exe`. Si existe una copia externa en el mismo directorio, tiene prioridad — útil para actualizar instrucciones sin recompilar.
+
+## Estructura del Proyecto
+
+```
+src/
+├── application_window.py              # GUI, orquestación, progreso
+├── secure_file_transfer_service.py    # Conexión SFTP y descarga paralela
+├── schema_ini_generator.py            # Inferencia de esquema y generación .ini
+├── filesystem_helpers.py              # Creación de directorios y validación
+├── configuration_settings.py          # Credenciales, rutas, parámetros
+├── color_palette.py                   # Paleta de colores
+└── canvas_drawing_helpers.py          # Utilidades de dibujo (rectángulos redondeados)
+```
+
+## Salida
+
+Tras descarga exitosa:
+- **Archivos**: `C:\DCA\autopolis/{nombre_archivo}.txt` (delimitados por pipe `|`)
+- **Metadatos**: `schema.ini` (compatible con Jet/Access)
+
+Ver [DOCUMENTATION.md](DOCUMENTATION.md) para detalles de arquitectura.
