@@ -29,7 +29,7 @@ from src.schema_ini_generator import generate_schema_ini_file
 class DCAExtractorApplicationWindow:
     def __init__(self, root_window):
         self.root_window = root_window
-        self.root_window.title("Breinit DCA Extractor")
+        self.root_window.title("DCA FTP")
         self.root_window.geometry("640x790")
         self.root_window.resizable(False, False)
         self.root_window.configure(bg=COLOR_PALETTE["background_color"])
@@ -64,7 +64,7 @@ class DCAExtractorApplicationWindow:
         tkinter.Label(header_content_frame, text="🗄", font=("Segoe UI Emoji", 16),
                       bg=COLOR_PALETTE["primary_color"], fg=COLOR_PALETTE["on_primary_color"]).pack(
             side="left", padx=(0, 8))
-        tkinter.Label(header_content_frame, text="Breinit DCA Extractor", font=self.application_fonts["title_font"],
+        tkinter.Label(header_content_frame, text="DCA FTP", font=self.application_fonts["title_font"],
                       bg=COLOR_PALETTE["primary_color"], fg=COLOR_PALETTE["on_primary_color"]).pack(side="left")
 
     def build_hero_status_card(self):
