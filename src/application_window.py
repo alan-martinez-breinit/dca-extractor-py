@@ -6,7 +6,14 @@ import tkinter
 from tkinter import font as tkinter_font
 
 from src.color_palette import COLOR_PALETTE, LOG_TITLE_BAR_INDICATOR_COLORS
-from src.canvas_drawing_helpers import draw_rounded_rectangle
+from src.canvas_drawing_helpers import (
+    draw_rounded_rectangle,
+    draw_download_glyph,
+    draw_clipboard_glyph,
+    draw_check_glyph,
+    draw_cabinet_glyph,
+    draw_terminal_glyph,
+)
 from src.configuration_settings import (
     REMOTE_DIRECTORY_PATH,
     LOCAL_BASE_DIRECTORY_PATH,
@@ -26,16 +33,33 @@ from src.secure_file_transfer_service import SecureFileTransferService
 from src.schema_ini_generator import generate_schema_ini_file
 
 
+DESIGNED_WINDOW_WIDTH_PIXELS = 640
+DESIGNED_WINDOW_HEIGHT_PIXELS = 790
+SCREEN_TASKBAR_RESERVE_PIXELS = 60
+MINIMUM_WINDOW_HEIGHT_PIXELS = 500
+
+HERO_CANVAS_HEIGHT_PIXELS = 330
+HERO_CANVAS_MARGIN_PIXELS = 30
+HERO_CANVAS_MINIMUM_WIDTH_PIXELS = 360
+ICON_GLYPH_SIZE_PIXELS = 16
+
+
 class DCAExtractorApplicationWindow:
     def __init__(self, root_window):
         self.root_window = root_window
-        self.root_window.title("DCA FTP")
-        self.root_window.geometry("640x790")
-        self.root_window.resizable(False, False)
+        self.root_window.title("FTP DCA AUTOPOLIS")
+        self.fit_window_to_device_screen()
         self.root_window.configure(bg=COLOR_PALETTE["background_color"])
 
         self.is_download_in_progress = False
         self.current_progress_percentage = 0.0
+        self.status_message = "Listo para iniciar transferencia segura"
+        self.progress_label_message = "En espera"
+        self.destination_path_message = None
+        self.download_button_enabled = True
+        self.download_button_label_text = "Descargar Archivos"
+        self.copy_icon_mode = "clipboard"
+        self.last_rendered_hero_canvas_width = None
 
         self.application_fonts = {
             "display_font": tkinter_font.Font(family="Segoe UI Semibold", size=22, weight="bold"),
@@ -50,6 +74,23 @@ class DCAExtractorApplicationWindow:
         self.build_hero_status_card()
         self.build_transfer_log_card()
 
+    def fit_window_to_device_screen(self):
+        screen_width_pixels = self.root_window.winfo_screenwidth()
+        screen_height_pixels = self.root_window.winfo_screenheight()
+
+        window_width_pixels = min(DESIGNED_WINDOW_WIDTH_PIXELS, screen_width_pixels)
+        window_height_pixels = min(
+            DESIGNED_WINDOW_HEIGHT_PIXELS, screen_height_pixels - SCREEN_TASKBAR_RESERVE_PIXELS)
+        self.window_width_pixels = window_width_pixels
+
+        window_position_x = (screen_width_pixels - window_width_pixels) // 2
+        window_position_y = (screen_height_pixels - window_height_pixels) // 2
+
+        self.root_window.geometry(
+            f"{window_width_pixels}x{window_height_pixels}+{window_position_x}+{window_position_y}")
+        self.root_window.minsize(window_width_pixels, min(window_height_pixels, MINIMUM_WINDOW_HEIGHT_PIXELS))
+        self.root_window.resizable(True, True)
+
     # ------------------------------------------------------------------
     # Construccion de la interfaz
     # ------------------------------------------------------------------
@@ -61,84 +102,139 @@ class DCAExtractorApplicationWindow:
         header_content_frame = tkinter.Frame(header_frame, bg=COLOR_PALETTE["primary_color"])
         header_content_frame.pack(expand=True)
 
-        tkinter.Label(header_content_frame, text="🗄", font=("Segoe UI Emoji", 16),
-                      bg=COLOR_PALETTE["primary_color"], fg=COLOR_PALETTE["on_primary_color"]).pack(
-            side="left", padx=(0, 8))
-        tkinter.Label(header_content_frame, text="DCA FTP", font=self.application_fonts["title_font"],
+        header_icon_canvas = tkinter.Canvas(header_content_frame, width=ICON_GLYPH_SIZE_PIXELS,
+                                             height=ICON_GLYPH_SIZE_PIXELS, bg=COLOR_PALETTE["primary_color"],
+                                             highlightthickness=0)
+        header_icon_canvas.pack(side="left", padx=(0, 8))
+        draw_cabinet_glyph(header_icon_canvas, ICON_GLYPH_SIZE_PIXELS / 2, ICON_GLYPH_SIZE_PIXELS / 2,
+                            ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["on_primary_color"])
+
+        tkinter.Label(header_content_frame, text="FTP DCA AUTOPOLIS", font=self.application_fonts["title_font"],
                       bg=COLOR_PALETTE["primary_color"], fg=COLOR_PALETTE["on_primary_color"]).pack(side="left")
 
     def build_hero_status_card(self):
         wrapper_frame = tkinter.Frame(self.root_window, bg=COLOR_PALETTE["background_color"])
         wrapper_frame.pack(fill="x", padx=20, pady=(20, 12))
 
-        self.hero_canvas = tkinter.Canvas(wrapper_frame, width=600, height=330,
-                                           bg=COLOR_PALETTE["background_color"], highlightthickness=0)
-        self.hero_canvas.pack()
+        self.destination_directory_path_for_clipboard = os.path.join(
+            LOCAL_BASE_DIRECTORY_PATH, LOCAL_CLIENT_SUBDIRECTORY_NAME)
+        self.destination_path_message = f"Se guardara en: {self.destination_directory_path_for_clipboard}"
 
-        draw_rounded_rectangle(self.hero_canvas, 0, 0, 600, 330, corner_radius=16,
+        self.hero_canvas = tkinter.Canvas(wrapper_frame, height=HERO_CANVAS_HEIGHT_PIXELS,
+                                           bg=COLOR_PALETTE["background_color"], highlightthickness=0)
+        self.hero_canvas.pack(fill="x")
+
+        self.hero_canvas.tag_bind("download_button_hitbox", "<Button-1>", self.handle_download_button_click)
+        self.hero_canvas.tag_bind("download_button_hitbox", "<Enter>",
+                                   lambda event: self.hero_canvas.config(cursor="hand2"))
+        self.hero_canvas.tag_bind("download_button_hitbox", "<Leave>",
+                                   lambda event: self.hero_canvas.config(cursor=""))
+        self.hero_canvas.tag_bind("copy_path_hitbox", "<Button-1>", self.handle_copy_path_click)
+        self.hero_canvas.tag_bind("copy_path_hitbox", "<Enter>",
+                                   lambda event: self.hero_canvas.config(cursor="hand2"))
+        self.hero_canvas.tag_bind("copy_path_hitbox", "<Leave>",
+                                   lambda event: self.hero_canvas.config(cursor=""))
+
+        self.hero_canvas.bind("<Configure>", self.handle_hero_canvas_resize)
+
+        initial_canvas_width = self.window_width_pixels - 2 * HERO_CANVAS_MARGIN_PIXELS - 10
+        self.last_rendered_hero_canvas_width = initial_canvas_width
+        self.render_hero_canvas(initial_canvas_width)
+
+    def handle_hero_canvas_resize(self, event):
+        if event.width == self.last_rendered_hero_canvas_width:
+            return
+        self.last_rendered_hero_canvas_width = event.width
+        self.render_hero_canvas(event.width)
+
+    def render_hero_canvas(self, canvas_width=None):
+        if canvas_width is None:
+            canvas_width = self.hero_canvas.winfo_width()
+        canvas_width = max(canvas_width, HERO_CANVAS_MINIMUM_WIDTH_PIXELS)
+
+        self.hero_canvas.delete("all")
+
+        left_x = HERO_CANVAS_MARGIN_PIXELS
+        right_x = canvas_width - HERO_CANVAS_MARGIN_PIXELS
+        center_x = canvas_width / 2
+
+        draw_rounded_rectangle(self.hero_canvas, 0, 0, canvas_width, HERO_CANVAS_HEIGHT_PIXELS, corner_radius=16,
                                 fill=COLOR_PALETTE["surface_lowest_color"],
                                 outline=COLOR_PALETTE["outline_variant_color"])
 
-        draw_rounded_rectangle(self.hero_canvas, 230, 20, 370, 42, corner_radius=10,
+        draw_rounded_rectangle(self.hero_canvas, center_x - 70, 20, center_x + 70, 42, corner_radius=10,
                                 fill=COLOR_PALETTE["primary_fixed_color"], outline="")
-        self.hero_canvas.create_text(300, 31, text="TRANSFERENCIA SEGURA", font=self.application_fonts["label_font"],
+        self.hero_canvas.create_text(center_x, 31, text="TRANSFERENCIA SEGURA",
+                                      font=self.application_fonts["label_font"],
                                       fill=COLOR_PALETTE["primary_container_color"])
 
-        self.hero_canvas.create_text(300, 78, text="Descarga de archivos SFTP",
+        self.hero_canvas.create_text(center_x, 78, text="Descarga de archivos SFTP",
                                       font=self.application_fonts["display_font"], fill=COLOR_PALETTE["primary_color"])
         self.status_text_item_id = self.hero_canvas.create_text(
-            300, 108, text="Listo para iniciar transferencia segura",
+            center_x, 108, text=self.status_message,
             font=self.application_fonts["body_font"], fill=COLOR_PALETTE["on_surface_variant_color"])
 
         self.progress_label_item_id = self.hero_canvas.create_text(
-            30, 160, text="En espera", font=self.application_fonts["title_font"],
+            left_x, 160, text=self.progress_label_message, font=self.application_fonts["title_font"],
             fill=COLOR_PALETTE["primary_color"], anchor="w")
         self.progress_percentage_item_id = self.hero_canvas.create_text(
-            570, 160, text="0%", font=self.application_fonts["code_bold_font"],
+            right_x, 160, text=f"{int(self.current_progress_percentage)}%",
+            font=self.application_fonts["code_bold_font"],
             fill=COLOR_PALETTE["primary_color"], anchor="e")
 
-        self.progress_bar_left_x, self.progress_bar_top_y = 30, 178
-        self.progress_bar_right_x, self.progress_bar_bottom_y = 570, 190
+        self.progress_bar_left_x, self.progress_bar_top_y = left_x, 178
+        self.progress_bar_right_x, self.progress_bar_bottom_y = right_x, 190
         draw_rounded_rectangle(self.hero_canvas, self.progress_bar_left_x, self.progress_bar_top_y,
                                 self.progress_bar_right_x, self.progress_bar_bottom_y, corner_radius=6,
                                 fill=COLOR_PALETTE["surface_container_color"], outline="")
+        progress_bar_fill_right_x = self.progress_bar_left_x + (
+            self.progress_bar_right_x - self.progress_bar_left_x) * (self.current_progress_percentage / 100.0)
         self.progress_bar_fill_item_id = draw_rounded_rectangle(
             self.hero_canvas, self.progress_bar_left_x, self.progress_bar_top_y,
-            self.progress_bar_left_x, self.progress_bar_bottom_y, corner_radius=6,
+            max(progress_bar_fill_right_x, self.progress_bar_left_x), self.progress_bar_bottom_y, corner_radius=6,
             fill=COLOR_PALETTE["primary_color"], outline="")
 
-        self.download_button_left_x, self.download_button_top_y = 190, 220
-        self.download_button_right_x, self.download_button_bottom_y = 410, 268
+        button_half_width = 110
+        self.download_button_left_x, self.download_button_top_y = center_x - button_half_width, 220
+        self.download_button_right_x, self.download_button_bottom_y = center_x + button_half_width, 268
+        button_center_y = (self.download_button_top_y + self.download_button_bottom_y) / 2
+        button_fill_color = (COLOR_PALETTE["primary_color"] if self.download_button_enabled
+                              else COLOR_PALETTE["outline_variant_color"])
         self.download_button_background_item_id = draw_rounded_rectangle(
             self.hero_canvas, self.download_button_left_x, self.download_button_top_y,
             self.download_button_right_x, self.download_button_bottom_y, corner_radius=14,
-            fill=COLOR_PALETTE["primary_color"], outline="")
-        self.download_button_text_item_id = self.hero_canvas.create_text(
-            300, 244, text="⬇  Descargar Archivos", font=self.application_fonts["title_font"],
-            fill=COLOR_PALETTE["on_primary_color"])
+            fill=button_fill_color, outline="", tags=("download_button_hitbox",))
 
-        for clickable_item_id in (self.download_button_background_item_id, self.download_button_text_item_id):
-            self.hero_canvas.tag_bind(clickable_item_id, "<Button-1>", self.handle_download_button_click)
-            self.hero_canvas.tag_bind(clickable_item_id, "<Enter>",
-                                       lambda event: self.hero_canvas.config(cursor="hand2"))
-            self.hero_canvas.tag_bind(clickable_item_id, "<Leave>", lambda event: self.hero_canvas.config(cursor=""))
+        label_text_width = self.application_fonts["title_font"].measure(self.download_button_label_text)
+        icon_gap = 8
+        group_width = ICON_GLYPH_SIZE_PIXELS + icon_gap + label_text_width
+        group_left_x = center_x - group_width / 2
+        icon_center_x = group_left_x + ICON_GLYPH_SIZE_PIXELS / 2
+        label_left_x = group_left_x + ICON_GLYPH_SIZE_PIXELS + icon_gap
+
+        draw_download_glyph(self.hero_canvas, icon_center_x, button_center_y, ICON_GLYPH_SIZE_PIXELS,
+                             COLOR_PALETTE["on_primary_color"], tags=("download_button_hitbox",))
+        self.download_button_text_item_id = self.hero_canvas.create_text(
+            label_left_x, button_center_y, text=self.download_button_label_text, anchor="w",
+            font=self.application_fonts["title_font"], fill=COLOR_PALETTE["on_primary_color"],
+            tags=("download_button_hitbox",))
 
         destination_path_row_y = 300
-        self.destination_directory_path_for_clipboard = os.path.join(
-            LOCAL_BASE_DIRECTORY_PATH, LOCAL_CLIENT_SUBDIRECTORY_NAME)
         self.destination_path_text_item_id = self.hero_canvas.create_text(
-            30, destination_path_row_y,
-            text=f"Se guardara en: {self.destination_directory_path_for_clipboard}",
+            left_x, destination_path_row_y, text=self.destination_path_message,
             font=self.application_fonts["body_font"], fill=COLOR_PALETTE["on_surface_variant_color"], anchor="w")
 
-        self.copy_path_icon_item_id = self.hero_canvas.create_text(
-            570, destination_path_row_y, text="📋", font=("Segoe UI Emoji", 12), anchor="e")
-
-        self.hero_canvas.tag_bind(self.copy_path_icon_item_id, "<Button-1>", self.handle_copy_path_click)
-        self.hero_canvas.tag_bind(self.copy_path_icon_item_id, "<Enter>",
-                                   lambda event: self.hero_canvas.config(cursor="hand2"))
-        self.hero_canvas.tag_bind(self.copy_path_icon_item_id, "<Leave>",
-                                   lambda event: self.hero_canvas.config(cursor=""))
+        if self.copy_icon_mode == "check":
+            draw_check_glyph(self.hero_canvas, right_x - ICON_GLYPH_SIZE_PIXELS / 2, destination_path_row_y,
+                              ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["primary_color"], tags=("copy_path_hitbox",))
+        else:
+            draw_clipboard_glyph(self.hero_canvas, right_x - ICON_GLYPH_SIZE_PIXELS / 2, destination_path_row_y,
+                                  ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["on_surface_variant_color"],
+                                  tags=("copy_path_hitbox",))
+        self.hero_canvas.create_rectangle(
+            right_x - ICON_GLYPH_SIZE_PIXELS, destination_path_row_y - ICON_GLYPH_SIZE_PIXELS / 2,
+            right_x + ICON_GLYPH_SIZE_PIXELS / 2, destination_path_row_y + ICON_GLYPH_SIZE_PIXELS / 2,
+            fill="", outline="", tags=("copy_path_hitbox",))
 
     def build_transfer_log_card(self):
         wrapper_frame = tkinter.Frame(self.root_window, bg=COLOR_PALETTE["background_color"])
@@ -146,7 +242,15 @@ class DCAExtractorApplicationWindow:
 
         label_row_frame = tkinter.Frame(wrapper_frame, bg=COLOR_PALETTE["background_color"])
         label_row_frame.pack(fill="x", pady=(0, 6))
-        tkinter.Label(label_row_frame, text="⌨  REGISTRO DE TRANSFERENCIA", font=self.application_fonts["label_font"],
+
+        log_icon_size = 12
+        log_icon_canvas = tkinter.Canvas(label_row_frame, width=log_icon_size, height=log_icon_size,
+                                          bg=COLOR_PALETTE["background_color"], highlightthickness=0)
+        log_icon_canvas.pack(side="left", padx=(0, 6))
+        draw_terminal_glyph(log_icon_canvas, log_icon_size / 2, log_icon_size / 2, log_icon_size,
+                             COLOR_PALETTE["on_surface_variant_color"])
+
+        tkinter.Label(label_row_frame, text="REGISTRO DE TRANSFERENCIA", font=self.application_fonts["label_font"],
                       bg=COLOR_PALETTE["background_color"], fg=COLOR_PALETTE["on_surface_variant_color"]).pack(
             side="left")
 
@@ -205,9 +309,11 @@ class DCAExtractorApplicationWindow:
         self.transfer_log_text_widget.config(state="disabled")
 
     def update_status_message(self, status_message):
+        self.status_message = status_message
         self.hero_canvas.itemconfig(self.status_text_item_id, text=status_message)
 
     def update_progress_label_message(self, progress_label_message):
+        self.progress_label_message = progress_label_message
         self.hero_canvas.itemconfig(self.progress_label_item_id, text=progress_label_message)
 
     def update_progress_bar(self, new_progress_percentage):
@@ -232,6 +338,7 @@ class DCAExtractorApplicationWindow:
                                      text=f"{int(self.current_progress_percentage)}%")
 
     def update_destination_path_message(self, destination_path_message):
+        self.destination_path_message = destination_path_message
         self.hero_canvas.itemconfig(self.destination_path_text_item_id, text=destination_path_message)
 
     def handle_copy_path_click(self, event=None):
@@ -239,14 +346,19 @@ class DCAExtractorApplicationWindow:
         self.root_window.clipboard_append(self.destination_directory_path_for_clipboard)
         self.root_window.update()
         self.append_log_entry("Ruta copiada al portapapeles", "success_tag")
-        self.hero_canvas.itemconfig(self.copy_path_icon_item_id, text="✓")
-        self.root_window.after(1200, lambda: self.hero_canvas.itemconfig(self.copy_path_icon_item_id, text="📋"))
+        self.copy_icon_mode = "check"
+        self.render_hero_canvas()
+        self.root_window.after(1200, self.revert_copy_path_icon)
+
+    def revert_copy_path_icon(self):
+        self.copy_icon_mode = "clipboard"
+        self.render_hero_canvas()
 
     def update_download_button_state(self, is_enabled, button_text=None):
-        button_fill_color = COLOR_PALETTE["primary_color"] if is_enabled else COLOR_PALETTE["outline_variant_color"]
-        self.hero_canvas.itemconfig(self.download_button_background_item_id, fill=button_fill_color)
+        self.download_button_enabled = is_enabled
         if button_text is not None:
-            self.hero_canvas.itemconfig(self.download_button_text_item_id, text=button_text)
+            self.download_button_label_text = button_text
+        self.render_hero_canvas()
 
     def handle_download_button_click(self, event=None):
         if self.is_download_in_progress:
@@ -258,7 +370,7 @@ class DCAExtractorApplicationWindow:
     # ------------------------------------------------------------------
     def start_download_process(self):
         self.is_download_in_progress = True
-        self.update_download_button_state(False, "⬇  Descargando...")
+        self.update_download_button_state(False, "Descargando...")
         self.transfer_log_text_widget.config(state="normal")
         self.transfer_log_text_widget.delete("1.0", "end")
         self.transfer_log_text_widget.config(state="disabled")
@@ -418,4 +530,4 @@ class DCAExtractorApplicationWindow:
 
     def finish_download_process(self):
         self.is_download_in_progress = False
-        self.update_download_button_state(True, "⬇  Descargar Archivos")
+        self.update_download_button_state(True, "Descargar Archivos")

@@ -27,10 +27,10 @@ python main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "DCA_FTP" --icon dca_icon.ico --add-data "INSTRUCCIONES_IA.md;." main.py
+pyinstaller --onefile --windowed --name "FTP DCA AUTOPOLIS" --icon dca_icon.ico --add-data "INSTRUCCIONES_IA.md;." main.py
 ```
 
-Ejecutable: `dist/DCA_FTP.exe`
+Ejecutable: `dist/FTP DCA AUTOPOLIS.exe`
 
 El archivo `INSTRUCCIONES_IA.md` se embebe en el `.exe`. Si existe una copia externa en el mismo directorio, tiene prioridad — útil para actualizar instrucciones sin recompilar.
 
