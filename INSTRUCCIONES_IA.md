@@ -40,6 +40,14 @@ Verifica en `schema.ini` cuáles de estos campos existen en los archivos que vas
 - `VIN` — identifica un vehículo específico.
 - `Clientes` / `Clientes_Descripcion` — identifican al cliente.
 
+## Reglas de análisis — Venta de Autos
+
+Estas reglas aplican por default al analizar `ventas_autos` (y su comparación contra `objetivo_autos`), salvo que el usuario pida explícitamente lo contrario. **Son exclusivas de autos**: `Nuevo_Usado` y `Tipo_de_Venta` no existen en `venta_servicio_refacciones` ni en `objetivos_servicio` (esas vistas usan `Tipo_Venta_Serv_Most`/`Sub_Tipo_Venta`, que categorizan servicio y refacciones, no tipo de vehículo) — no intentes aplicar estas reglas ahí.
+
+1. **Separar Nuevos vs. Usados.** Reporta las cifras desglosadas por `Nuevo_Usado` (`AUTOS NUEVOS` / `AUTOS USADOS`) en vez de un total combinado. Si el usuario no especificó un segmento, muestra ambos por separado — no un solo número mezclado.
+2. **Excluir INTERCAMBIO.** Al calcular venta, unidades o utilidad de autos, excluye las filas donde `Tipo_de_Venta = INTERCAMBIO` — no cuentan como venta real. Es el mismo criterio que usa el negocio al comparar venta real contra objetivo.
+3. **Preguntar por Flotilla vs. Menudeo.** Si el análisis mezcla ventas de flotilla (`Tipo_de_Venta = FLOTILLA`) con menudeo (venta individual — cualquier categoría de `Tipo_de_Venta` que no sea `FLOTILLA` ni `INTERCAMBIO`), pregúntale al usuario si las quiere juntas o separadas antes de presentar el resultado. No asumas ninguna de las dos por tu cuenta.
+
 ## Reglas
 
 1. Antes de responder, revisa tú mismo `schema.ini` — no le preguntes al usuario qué archivos o columnas existen, esa información ya está en el archivo adjunto.

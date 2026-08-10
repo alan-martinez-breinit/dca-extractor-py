@@ -42,7 +42,8 @@ from src.download_period_filter import (
     build_download_context_note,
     write_filtered_period_files,
 )
-from src.download_history_log import append_download_history_entry, format_duration_message
+from src.download_run_info import format_duration_message
+from src.download_monitoring_log import append_monitoring_entry
 
 SUPPORT_CONTACT_MESSAGE = "Si el problema persiste, comuníquese con DCA Soporte."
 
@@ -485,9 +486,7 @@ class DCAExtractorApplicationWindow:
                 self.append_log_entry(
                     f"Tiempo transcurrido: {format_duration_message(elapsed_seconds)}", "normal_tag")
                 secure_file_transfer_service.disconnect_from_remote_server()
-                append_download_history_entry(
-                    local_destination_directory_path, period_short_label,
-                    "SIN ARCHIVOS (el remoto no tiene .txt)", 0, elapsed_seconds)
+                append_monitoring_entry(period_short_label)
                 messagebox.showwarning(
                     "Sin archivos para descargar",
                     "El servidor DCA no tiene archivos .txt disponibles en este momento.\n\n"
@@ -625,7 +624,6 @@ class DCAExtractorApplicationWindow:
                         f"{bundled_documentation_file_name} no encontrado, se omitio", "normal_tag")
 
             elapsed_seconds = time.time() - overall_workflow_start_time
-            total_files_generated = total_file_count * len(period_output_specs)
 
             self.update_status_message("Descarga completada")
             self.update_progress_label_message("Transferencia finalizada")
@@ -635,9 +633,7 @@ class DCAExtractorApplicationWindow:
             self.append_log_entry("Completado exitosamente", "success_tag")
             self.update_progress_bar(100)
 
-            append_download_history_entry(
-                local_destination_directory_path, period_short_label, "OK",
-                total_files_generated, elapsed_seconds)
+            append_monitoring_entry(period_short_label)
 
         except Exception as raised_exception:
             elapsed_seconds = time.time() - overall_workflow_start_time
@@ -646,9 +642,7 @@ class DCAExtractorApplicationWindow:
             self.append_log_entry(f"Error: {error_message_text}", "error_tag")
             self.append_log_entry(
                 f"Tiempo transcurrido antes del error: {format_duration_message(elapsed_seconds)}", "normal_tag")
-            append_download_history_entry(
-                local_destination_directory_path or LOCAL_BASE_DIRECTORY_PATH, period_short_label,
-                f"ERROR: {error_message_text}", 0, elapsed_seconds)
+            append_monitoring_entry(period_short_label)
             messagebox.showerror(
                 "Error de Transferencia",
                 "No se pudo completar la descarga de datos DCA.\n\n"
