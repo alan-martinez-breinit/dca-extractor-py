@@ -44,8 +44,10 @@ class SecureFileTransferService:
         return self.secure_file_transfer_client.stat(remote_file_name).st_size
 
     def download_remote_file_with_progress(self, remote_file_name, remote_file_size_in_bytes,
-                                            local_destination_directory_path, on_chunk_downloaded_callback):
-        local_destination_file_path = os.path.join(local_destination_directory_path, remote_file_name)
+                                            local_destination_directory_path, on_chunk_downloaded_callback,
+                                            local_file_name_override=None):
+        local_file_name = local_file_name_override if local_file_name_override is not None else remote_file_name
+        local_destination_file_path = os.path.join(local_destination_directory_path, local_file_name)
 
         with open(local_destination_file_path, "wb") as local_output_file_handle:
             self.secure_file_transfer_client.getfo(

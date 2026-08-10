@@ -3,7 +3,7 @@ import os
 import threading
 import time
 import tkinter
-from tkinter import font as tkinter_font
+from tkinter import font as tkinter_font, messagebox
 
 from src.color_palette import COLOR_PALETTE, LOG_TITLE_BAR_INDICATOR_COLORS
 from src.canvas_drawing_helpers import (
@@ -20,28 +20,48 @@ from src.configuration_settings import (
     LOCAL_CLIENT_SUBDIRECTORY_NAME,
     PROGRESS_LOG_STEP_PERCENTAGE,
     INTERFACE_UPDATE_STEP_PERCENTAGE,
-    AI_INSTRUCTIONS_SOURCE_FILE_NAME,
+    AI_INSTRUCTIONS_FILE_NAME,
+    BUNDLED_DOCUMENTATION_FILE_NAMES,
     AI_INSTRUCTIONS_SEARCH_DIRECTORIES,
 )
 from src.filesystem_helpers import (
     ensure_base_directory_exists,
     ensure_client_subdirectory_exists,
     local_file_with_matching_name_exists,
+    list_text_file_names_in_directory,
+    find_first_available_static_file_path,
     copy_first_available_static_file,
 )
 from src.secure_file_transfer_service import SecureFileTransferService
 from src.schema_ini_generator import generate_schema_ini_file
+from src.download_period_filter import (
+    DOWNLOAD_PERIOD_BUTTON_SPECS,
+    resolve_period_output_specs,
+    resolve_period_short_label,
+    build_period_output_file_path,
+    build_download_context_note,
+    write_filtered_period_files,
+)
+from src.download_history_log import append_download_history_entry, format_duration_message
+
+SUPPORT_CONTACT_MESSAGE = "Si el problema persiste, comuníquese con DCA Soporte."
 
 
 DESIGNED_WINDOW_WIDTH_PIXELS = 640
-DESIGNED_WINDOW_HEIGHT_PIXELS = 790
+DESIGNED_WINDOW_HEIGHT_PIXELS = 894
 SCREEN_TASKBAR_RESERVE_PIXELS = 60
-MINIMUM_WINDOW_HEIGHT_PIXELS = 500
+MINIMUM_WINDOW_HEIGHT_PIXELS = 560
 
-HERO_CANVAS_HEIGHT_PIXELS = 330
+HERO_CANVAS_HEIGHT_PIXELS = 434
 HERO_CANVAS_MARGIN_PIXELS = 30
 HERO_CANVAS_MINIMUM_WIDTH_PIXELS = 360
 ICON_GLYPH_SIZE_PIXELS = 16
+
+DOWNLOAD_ACTION_BUTTONS_TOP_Y_PIXELS = 220
+DOWNLOAD_ACTION_BUTTON_HEIGHT_PIXELS = 44
+DOWNLOAD_ACTION_BUTTON_GAP_PIXELS = 10
+DOWNLOAD_ACTION_BUTTON_HALF_WIDTH_PIXELS = 130
+DESTINATION_PATH_ROW_Y_PIXELS = 404
 
 
 class DCAExtractorApplicationWindow:
@@ -56,8 +76,10 @@ class DCAExtractorApplicationWindow:
         self.status_message = "Listo para iniciar transferencia segura"
         self.progress_label_message = "En espera"
         self.destination_path_message = None
-        self.download_button_enabled = True
-        self.download_button_label_text = "Descargar Archivos"
+        self.download_action_button_states = {
+            spec["period_key"]: {"label_text": spec["label"], "enabled": True}
+            for spec in DOWNLOAD_PERIOD_BUTTON_SPECS
+        }
         self.copy_icon_mode = "clipboard"
         self.last_rendered_hero_canvas_width = None
 
@@ -109,7 +131,7 @@ class DCAExtractorApplicationWindow:
         draw_cabinet_glyph(header_icon_canvas, ICON_GLYPH_SIZE_PIXELS / 2, ICON_GLYPH_SIZE_PIXELS / 2,
                             ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["on_primary_color"])
 
-        tkinter.Label(header_content_frame, text="FTP DCA AUTOPOLIS", font=self.application_fonts["title_font"],
+        tkinter.Label(header_content_frame, text="FTP DCA AUTO  POLIS", font=self.application_fonts["title_font"],
                       bg=COLOR_PALETTE["primary_color"], fg=COLOR_PALETTE["on_primary_color"]).pack(side="left")
 
     def build_hero_status_card(self):
@@ -124,11 +146,16 @@ class DCAExtractorApplicationWindow:
                                            bg=COLOR_PALETTE["background_color"], highlightthickness=0)
         self.hero_canvas.pack(fill="x")
 
-        self.hero_canvas.tag_bind("download_button_hitbox", "<Button-1>", self.handle_download_button_click)
-        self.hero_canvas.tag_bind("download_button_hitbox", "<Enter>",
-                                   lambda event: self.hero_canvas.config(cursor="hand2"))
-        self.hero_canvas.tag_bind("download_button_hitbox", "<Leave>",
-                                   lambda event: self.hero_canvas.config(cursor=""))
+        for spec in DOWNLOAD_PERIOD_BUTTON_SPECS:
+            hitbox_tag = self.download_button_hitbox_tag(spec["period_key"])
+            self.hero_canvas.tag_bind(
+                hitbox_tag, "<Button-1>",
+                lambda event, period_key=spec["period_key"]: self.handle_download_button_click(period_key))
+            self.hero_canvas.tag_bind(hitbox_tag, "<Enter>",
+                                       lambda event: self.hero_canvas.config(cursor="hand2"))
+            self.hero_canvas.tag_bind(hitbox_tag, "<Leave>",
+                                       lambda event: self.hero_canvas.config(cursor=""))
+
         self.hero_canvas.tag_bind("copy_path_hitbox", "<Button-1>", self.handle_copy_path_click)
         self.hero_canvas.tag_bind("copy_path_hitbox", "<Enter>",
                                    lambda event: self.hero_canvas.config(cursor="hand2"))
@@ -146,6 +173,10 @@ class DCAExtractorApplicationWindow:
             return
         self.last_rendered_hero_canvas_width = event.width
         self.render_hero_canvas(event.width)
+
+    @staticmethod
+    def download_button_hitbox_tag(period_key):
+        return f"download_button_hitbox_{period_key}"
 
     def render_hero_canvas(self, canvas_width=None):
         if canvas_width is None:
@@ -194,18 +225,43 @@ class DCAExtractorApplicationWindow:
             max(progress_bar_fill_right_x, self.progress_bar_left_x), self.progress_bar_bottom_y, corner_radius=6,
             fill=COLOR_PALETTE["primary_color"], outline="")
 
-        button_half_width = 110
-        self.download_button_left_x, self.download_button_top_y = center_x - button_half_width, 220
-        self.download_button_right_x, self.download_button_bottom_y = center_x + button_half_width, 268
-        button_center_y = (self.download_button_top_y + self.download_button_bottom_y) / 2
-        button_fill_color = (COLOR_PALETTE["primary_color"] if self.download_button_enabled
-                              else COLOR_PALETTE["outline_variant_color"])
-        self.download_button_background_item_id = draw_rounded_rectangle(
-            self.hero_canvas, self.download_button_left_x, self.download_button_top_y,
-            self.download_button_right_x, self.download_button_bottom_y, corner_radius=14,
-            fill=button_fill_color, outline="", tags=("download_button_hitbox",))
+        for button_index, spec in enumerate(DOWNLOAD_PERIOD_BUTTON_SPECS):
+            self.draw_download_action_button(center_x, button_index, spec["period_key"])
 
-        label_text_width = self.application_fonts["title_font"].measure(self.download_button_label_text)
+        self.destination_path_text_item_id = self.hero_canvas.create_text(
+            left_x, DESTINATION_PATH_ROW_Y_PIXELS, text=self.destination_path_message,
+            font=self.application_fonts["body_font"], fill=COLOR_PALETTE["on_surface_variant_color"], anchor="w")
+
+        if self.copy_icon_mode == "check":
+            draw_check_glyph(self.hero_canvas, right_x - ICON_GLYPH_SIZE_PIXELS / 2, DESTINATION_PATH_ROW_Y_PIXELS,
+                              ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["primary_color"], tags=("copy_path_hitbox",))
+        else:
+            draw_clipboard_glyph(self.hero_canvas, right_x - ICON_GLYPH_SIZE_PIXELS / 2, DESTINATION_PATH_ROW_Y_PIXELS,
+                                  ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["on_surface_variant_color"],
+                                  tags=("copy_path_hitbox",))
+        self.hero_canvas.create_rectangle(
+            right_x - ICON_GLYPH_SIZE_PIXELS, DESTINATION_PATH_ROW_Y_PIXELS - ICON_GLYPH_SIZE_PIXELS / 2,
+            right_x + ICON_GLYPH_SIZE_PIXELS / 2, DESTINATION_PATH_ROW_Y_PIXELS + ICON_GLYPH_SIZE_PIXELS / 2,
+            fill="", outline="", tags=("copy_path_hitbox",))
+
+    def draw_download_action_button(self, center_x, button_index, period_key):
+        button_state = self.download_action_button_states[period_key]
+        hitbox_tag = self.download_button_hitbox_tag(period_key)
+
+        button_top_y = DOWNLOAD_ACTION_BUTTONS_TOP_Y_PIXELS + button_index * (
+            DOWNLOAD_ACTION_BUTTON_HEIGHT_PIXELS + DOWNLOAD_ACTION_BUTTON_GAP_PIXELS)
+        button_bottom_y = button_top_y + DOWNLOAD_ACTION_BUTTON_HEIGHT_PIXELS
+        button_center_y = (button_top_y + button_bottom_y) / 2
+
+        button_fill_color = (COLOR_PALETTE["primary_color"] if button_state["enabled"]
+                              else COLOR_PALETTE["outline_variant_color"])
+        draw_rounded_rectangle(
+            self.hero_canvas, center_x - DOWNLOAD_ACTION_BUTTON_HALF_WIDTH_PIXELS, button_top_y,
+            center_x + DOWNLOAD_ACTION_BUTTON_HALF_WIDTH_PIXELS, button_bottom_y, corner_radius=14,
+            fill=button_fill_color, outline="", tags=(hitbox_tag,))
+
+        label_text = button_state["label_text"]
+        label_text_width = self.application_fonts["title_font"].measure(label_text)
         icon_gap = 8
         group_width = ICON_GLYPH_SIZE_PIXELS + icon_gap + label_text_width
         group_left_x = center_x - group_width / 2
@@ -213,28 +269,11 @@ class DCAExtractorApplicationWindow:
         label_left_x = group_left_x + ICON_GLYPH_SIZE_PIXELS + icon_gap
 
         draw_download_glyph(self.hero_canvas, icon_center_x, button_center_y, ICON_GLYPH_SIZE_PIXELS,
-                             COLOR_PALETTE["on_primary_color"], tags=("download_button_hitbox",))
-        self.download_button_text_item_id = self.hero_canvas.create_text(
-            label_left_x, button_center_y, text=self.download_button_label_text, anchor="w",
+                             COLOR_PALETTE["on_primary_color"], tags=(hitbox_tag,))
+        self.hero_canvas.create_text(
+            label_left_x, button_center_y, text=label_text, anchor="w",
             font=self.application_fonts["title_font"], fill=COLOR_PALETTE["on_primary_color"],
-            tags=("download_button_hitbox",))
-
-        destination_path_row_y = 300
-        self.destination_path_text_item_id = self.hero_canvas.create_text(
-            left_x, destination_path_row_y, text=self.destination_path_message,
-            font=self.application_fonts["body_font"], fill=COLOR_PALETTE["on_surface_variant_color"], anchor="w")
-
-        if self.copy_icon_mode == "check":
-            draw_check_glyph(self.hero_canvas, right_x - ICON_GLYPH_SIZE_PIXELS / 2, destination_path_row_y,
-                              ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["primary_color"], tags=("copy_path_hitbox",))
-        else:
-            draw_clipboard_glyph(self.hero_canvas, right_x - ICON_GLYPH_SIZE_PIXELS / 2, destination_path_row_y,
-                                  ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["on_surface_variant_color"],
-                                  tags=("copy_path_hitbox",))
-        self.hero_canvas.create_rectangle(
-            right_x - ICON_GLYPH_SIZE_PIXELS, destination_path_row_y - ICON_GLYPH_SIZE_PIXELS / 2,
-            right_x + ICON_GLYPH_SIZE_PIXELS / 2, destination_path_row_y + ICON_GLYPH_SIZE_PIXELS / 2,
-            fill="", outline="", tags=("copy_path_hitbox",))
+            tags=(hitbox_tag,))
 
     def build_transfer_log_card(self):
         wrapper_frame = tkinter.Frame(self.root_window, bg=COLOR_PALETTE["background_color"])
@@ -354,33 +393,63 @@ class DCAExtractorApplicationWindow:
         self.copy_icon_mode = "clipboard"
         self.render_hero_canvas()
 
-    def update_download_button_state(self, is_enabled, button_text=None):
-        self.download_button_enabled = is_enabled
-        if button_text is not None:
-            self.download_button_label_text = button_text
+    def set_all_download_buttons_enabled(self, is_enabled):
+        for button_state in self.download_action_button_states.values():
+            button_state["enabled"] = is_enabled
         self.render_hero_canvas()
 
-    def handle_download_button_click(self, event=None):
+    def reset_download_button_labels(self):
+        for spec in DOWNLOAD_PERIOD_BUTTON_SPECS:
+            self.download_action_button_states[spec["period_key"]]["label_text"] = spec["label"]
+
+    def handle_download_button_click(self, period_key, event=None):
         if self.is_download_in_progress:
             return
-        self.start_download_process()
+        self.start_download_process(period_key)
 
     # ------------------------------------------------------------------
     # Orquestacion de la descarga
     # ------------------------------------------------------------------
-    def start_download_process(self):
+    def start_download_process(self, period_key):
         self.is_download_in_progress = True
-        self.update_download_button_state(False, "Descargando...")
+        self.download_action_button_states[period_key]["label_text"] = "Descargando..."
+        self.set_all_download_buttons_enabled(False)
         self.transfer_log_text_widget.config(state="normal")
         self.transfer_log_text_widget.delete("1.0", "end")
         self.transfer_log_text_widget.config(state="disabled")
         self.update_progress_bar(0)
 
-        download_thread = threading.Thread(target=self.run_download_workflow, daemon=True)
+        download_thread = threading.Thread(
+            target=self.run_download_workflow, args=(period_key,), daemon=True)
         download_thread.start()
 
-    def run_download_workflow(self):
+    def download_and_filter_remote_file(self, secure_file_transfer_service, remote_file_name,
+                                         current_file_size_in_bytes, local_destination_directory_path,
+                                         period_output_specs, reference_today, on_chunk_downloaded_callback):
+        temporary_download_file_path = os.path.join(
+            local_destination_directory_path, f"{remote_file_name}.download")
+        try:
+            downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
+                remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
+                on_chunk_downloaded_callback, local_file_name_override=os.path.basename(temporary_download_file_path))
+
+            output_file_paths, output_row_counts = write_filtered_period_files(
+                temporary_download_file_path, local_destination_directory_path, remote_file_name,
+                period_output_specs, reference_today)
+        finally:
+            if os.path.isfile(temporary_download_file_path):
+                os.remove(temporary_download_file_path)
+
+        return downloaded_file_size_in_bytes, output_file_paths, output_row_counts
+
+    def run_download_workflow(self, period_key):
         secure_file_transfer_service = SecureFileTransferService()
+        local_destination_directory_path = None
+        # Cronometro para "tiempo total"/historial: arranca al inicio de todo
+        # el flujo (conexion incluida). El tiempo de descarga de cada archivo
+        # se mide por separado, con su propio cronometro (mas abajo).
+        overall_workflow_start_time = time.time()
+        period_short_label = resolve_period_short_label(period_key)
         try:
             self.append_log_entry("Iniciando conexion...", "normal_tag")
             self.update_status_message("Conectando...")
@@ -409,12 +478,25 @@ class DCAExtractorApplicationWindow:
             remote_text_file_names = secure_file_transfer_service.list_remote_text_file_names(REMOTE_DIRECTORY_PATH)
 
             if not remote_text_file_names:
+                elapsed_seconds = time.time() - overall_workflow_start_time
                 self.update_status_message("No hay archivos .txt")
                 self.update_progress_label_message("Sin archivos")
                 self.append_log_entry("No se encontraron archivos .txt", "error_tag")
+                self.append_log_entry(
+                    f"Tiempo transcurrido: {format_duration_message(elapsed_seconds)}", "normal_tag")
                 secure_file_transfer_service.disconnect_from_remote_server()
+                append_download_history_entry(
+                    local_destination_directory_path, period_short_label,
+                    "SIN ARCHIVOS (el remoto no tiene .txt)", 0, elapsed_seconds)
+                messagebox.showwarning(
+                    "Sin archivos para descargar",
+                    "El servidor DCA no tiene archivos .txt disponibles en este momento.\n\n"
+                    f"{SUPPORT_CONTACT_MESSAGE}")
                 self.finish_download_process()
                 return
+
+            period_output_specs = resolve_period_output_specs(period_key)
+            reference_today = datetime.date.today()
 
             remote_files_with_sizes_ascending = sorted(
                 (
@@ -432,7 +514,6 @@ class DCAExtractorApplicationWindow:
                 f"Encontrados {len(remote_files_with_sizes_ascending)} archivos .txt "
                 f"(ordenados del que pesa menos al que pesa mas)", "success_tag")
 
-            workflow_start_time = time.time()
             total_bytes_downloaded_so_far = 0
             total_file_count = len(remote_files_with_sizes_ascending)
 
@@ -441,12 +522,16 @@ class DCAExtractorApplicationWindow:
                 self.update_progress_label_message(
                     f"Descargando {current_file_index + 1}/{total_file_count} archivos...")
 
-                if local_file_with_matching_name_exists(local_destination_directory_path, remote_file_name):
-                    self.append_log_entry(
-                        f"El archivo ya existe localmente y sera sobrescrito: {remote_file_name}", "normal_tag")
-                else:
-                    self.append_log_entry(
-                        f"El archivo no existe localmente y sera creado: {remote_file_name}", "normal_tag")
+                for output_suffix, _ in period_output_specs:
+                    output_file_path = build_period_output_file_path(
+                        local_destination_directory_path, remote_file_name, output_suffix)
+                    output_file_name = os.path.basename(output_file_path)
+                    if local_file_with_matching_name_exists(local_destination_directory_path, output_file_name):
+                        self.append_log_entry(
+                            f"El archivo ya existe localmente y sera sobrescrito: {output_file_name}", "normal_tag")
+                    else:
+                        self.append_log_entry(
+                            f"El archivo no existe localmente y sera creado: {output_file_name}", "normal_tag")
 
                 self.append_log_entry(
                     f"Descargando: {remote_file_name} ({current_file_size_in_bytes / 1024 / 1024:.2f} MB)",
@@ -481,53 +566,98 @@ class DCAExtractorApplicationWindow:
                     self.update_progress_bar(overall_progress_percentage)
                     self.root_window.update_idletasks()
 
-                downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
-                    remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
-                    handle_chunk_downloaded)
+                file_download_start_time = time.time()
+                downloaded_file_size_in_bytes, output_file_paths, output_row_counts = (
+                    self.download_and_filter_remote_file(
+                        secure_file_transfer_service, remote_file_name, current_file_size_in_bytes,
+                        local_destination_directory_path, period_output_specs, reference_today,
+                        handle_chunk_downloaded))
+                file_elapsed_seconds = time.time() - file_download_start_time
 
                 total_bytes_downloaded_so_far += downloaded_file_size_in_bytes
-                elapsed_time_in_seconds = time.time() - workflow_start_time
-                download_speed_in_bytes_per_second = (
-                    total_bytes_downloaded_so_far / elapsed_time_in_seconds if elapsed_time_in_seconds > 0 else 0)
-                remaining_bytes_to_download = total_size_in_bytes_of_all_files - total_bytes_downloaded_so_far
-                estimated_time_remaining_in_seconds = (
-                    remaining_bytes_to_download / download_speed_in_bytes_per_second
-                    if download_speed_in_bytes_per_second > 0 else 0)
 
-                self.append_log_entry(f"Completado: {remote_file_name}", "success_tag")
+                # Tiempo y velocidad de ESTE archivo (un hecho ya ocurrido), no una
+                # prediccion de cuanto falta. Con archivos que van de 0.1 MB a 86 MB,
+                # cualquier "ETA" extrapolado de un promedio acumulado queda muy lejos
+                # de la realidad para los archivos chicos que tardan solo segundos.
+                file_speed_in_mb_per_second = (
+                    (downloaded_file_size_in_bytes / 1024 / 1024) / file_elapsed_seconds
+                    if file_elapsed_seconds > 0 else 0.0)
+
                 self.append_log_entry(
-                    f"Velocidad: {download_speed_in_bytes_per_second / 1024 / 1024:.2f} MB/s | "
-                    f"ETA: {int(estimated_time_remaining_in_seconds)} seg", "normal_tag")
+                    f"Completado: {remote_file_name} en {format_duration_message(file_elapsed_seconds)} "
+                    f"({file_speed_in_mb_per_second:.2f} MB/s)", "success_tag")
+                for output_suffix, output_row_count in output_row_counts.items():
+                    output_file_name = os.path.basename(output_file_paths[output_suffix])
+                    self.append_log_entry(
+                        f"  -> {output_file_name}: {output_row_count} filas", "normal_tag")
 
             secure_file_transfer_service.disconnect_from_remote_server()
 
             self.append_log_entry("Generando schema.ini con la descripcion de cada archivo...", "normal_tag")
-            downloaded_file_names = [file_name for file_name, _ in remote_files_with_sizes_ascending]
-            generate_schema_ini_file(local_destination_directory_path, downloaded_file_names)
+            all_text_file_names_in_destination = list_text_file_names_in_directory(local_destination_directory_path)
+            generate_schema_ini_file(local_destination_directory_path, all_text_file_names_in_destination)
             self.append_log_entry("schema.ini generado exitosamente", "success_tag")
 
-            ai_instructions_file_was_copied = copy_first_available_static_file(
-                AI_INSTRUCTIONS_SEARCH_DIRECTORIES, AI_INSTRUCTIONS_SOURCE_FILE_NAME,
-                local_destination_directory_path)
-            if ai_instructions_file_was_copied:
-                self.append_log_entry(f"{AI_INSTRUCTIONS_SOURCE_FILE_NAME} copiado exitosamente", "success_tag")
-            else:
+            instructions_source_file_path = find_first_available_static_file_path(
+                AI_INSTRUCTIONS_SEARCH_DIRECTORIES, AI_INSTRUCTIONS_FILE_NAME)
+            if instructions_source_file_path is not None:
+                with open(instructions_source_file_path, "r", encoding="utf-8", errors="replace") as source_handle:
+                    base_instructions_content = source_handle.read()
+                context_note = build_download_context_note(period_key, reference_today)
+                instructions_destination_path = os.path.join(
+                    local_destination_directory_path, AI_INSTRUCTIONS_FILE_NAME)
+                with open(instructions_destination_path, "w", encoding="utf-8") as destination_handle:
+                    destination_handle.write(context_note + "\n---\n\n" + base_instructions_content)
                 self.append_log_entry(
-                    f"{AI_INSTRUCTIONS_SOURCE_FILE_NAME} no encontrado, se omitio",
-                    "normal_tag")
+                    f"{AI_INSTRUCTIONS_FILE_NAME} actualizado con el contexto de esta descarga", "success_tag")
+            else:
+                self.append_log_entry(f"{AI_INSTRUCTIONS_FILE_NAME} no encontrado, se omitio", "normal_tag")
+
+            for bundled_documentation_file_name in BUNDLED_DOCUMENTATION_FILE_NAMES:
+                documentation_file_was_copied = copy_first_available_static_file(
+                    AI_INSTRUCTIONS_SEARCH_DIRECTORIES, bundled_documentation_file_name,
+                    local_destination_directory_path)
+                if documentation_file_was_copied:
+                    self.append_log_entry(f"{bundled_documentation_file_name} copiado exitosamente", "success_tag")
+                else:
+                    self.append_log_entry(
+                        f"{bundled_documentation_file_name} no encontrado, se omitio", "normal_tag")
+
+            elapsed_seconds = time.time() - overall_workflow_start_time
+            total_files_generated = total_file_count * len(period_output_specs)
 
             self.update_status_message("Descarga completada")
             self.update_progress_label_message("Transferencia finalizada")
             self.update_destination_path_message(f"Guardado en: {local_destination_directory_path}")
+            self.append_log_entry(
+                f"Tiempo total: {format_duration_message(elapsed_seconds)}", "success_tag")
             self.append_log_entry("Completado exitosamente", "success_tag")
             self.update_progress_bar(100)
 
+            append_download_history_entry(
+                local_destination_directory_path, period_short_label, "OK",
+                total_files_generated, elapsed_seconds)
+
         except Exception as raised_exception:
+            elapsed_seconds = time.time() - overall_workflow_start_time
+            error_message_text = str(raised_exception)
             self.update_status_message("Error en la transferencia")
-            self.append_log_entry(f"Error: {str(raised_exception)}", "error_tag")
+            self.append_log_entry(f"Error: {error_message_text}", "error_tag")
+            self.append_log_entry(
+                f"Tiempo transcurrido antes del error: {format_duration_message(elapsed_seconds)}", "normal_tag")
+            append_download_history_entry(
+                local_destination_directory_path or LOCAL_BASE_DIRECTORY_PATH, period_short_label,
+                f"ERROR: {error_message_text}", 0, elapsed_seconds)
+            messagebox.showerror(
+                "Error de Transferencia",
+                "No se pudo completar la descarga de datos DCA.\n\n"
+                f"Detalle: {error_message_text}\n\n"
+                f"{SUPPORT_CONTACT_MESSAGE}")
         finally:
             self.finish_download_process()
 
     def finish_download_process(self):
         self.is_download_in_progress = False
-        self.update_download_button_state(True, "Descargar Archivos")
+        self.reset_download_button_labels()
+        self.set_all_download_buttons_enabled(True)

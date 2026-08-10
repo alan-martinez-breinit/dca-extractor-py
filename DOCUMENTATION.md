@@ -63,11 +63,13 @@ DCA FTP extrae datos tabulares desde servidores SFTP remotos y genera automátic
 
 ### 3. Instrucciones IA Embebidas
 
-**Decisión**: Embebeñ `INSTRUCCIONES_IA.md` en `.exe` mediante PyInstaller `--add-data`.
+**Decisión**: Embeber `INSTRUCCIONES_IA.md` en `.exe` mediante PyInstaller `--add-data`, listado en `BUNDLED_DOCUMENTATION_FILE_NAMES` (`configuration_settings.py`) y copiado tras la descarga.
 
 **Justificación**: Sistemas de IA (Claude, GPT) necesitan semántica de datos para interpretar campos DCA correctamente. Fuente única de verdad previene desvío de esquema.
 
-**Mecanismo Override**: Archivo externo (mismo directorio que `.exe`) tiene prioridad. Permite actualizaciones sin recompilación.
+**Mecanismo Override**: Archivo externo (mismo directorio que `.exe`) tiene prioridad sobre el embebido. Permite actualizar el documento sin recompilar.
+
+**Extensibilidad**: `BUNDLED_DOCUMENTATION_FILE_NAMES` es una tupla pensada para más de un documento — hay un `DICCIONARIO_IA.md` en preparación (en el repo, pero deliberadamente fuera de esta tupla hasta que se terminen sus ajustes). Agregarlo de vuelta = añadir su nombre a la tupla y su flag `--add-data` al build; no requiere tocar la lógica de copiado.
 
 ### 4. Manejo de Charset (ANSI vs. OEM)
 

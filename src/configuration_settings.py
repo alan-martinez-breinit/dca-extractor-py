@@ -19,11 +19,17 @@ else:
     APPLICATION_ROOT_DIRECTORY_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     BUNDLED_RESOURCES_DIRECTORY_PATH = APPLICATION_ROOT_DIRECTORY_PATH
 
-AI_INSTRUCTIONS_SOURCE_FILE_NAME = "INSTRUCCIONES_IA.md"
+# INSTRUCCIONES_IA.md se maneja aparte (no como copia literal): cada descarga le
+# antepone una nota de contexto con el periodo solicitado antes de escribirlo.
+AI_INSTRUCTIONS_FILE_NAME = "INSTRUCCIONES_IA.md"
 
-# Orden de busqueda para el archivo de instrucciones de IA: primero junto al .exe
-# (permite reemplazarlo sin recompilar), y como respaldo, la copia empaquetada
-# dentro del propio ejecutable (para que nunca falte si alguien mueve solo el .exe).
+# Otros documentos que si se copian tal cual, sin modificar. DICCIONARIO_IA.md
+# esta en preparacion (pendiente de ajustes) y aun no se agrega aqui a proposito.
+BUNDLED_DOCUMENTATION_FILE_NAMES = ()
+
+# Orden de busqueda para los documentos de IA: primero junto al .exe (permite
+# reemplazarlos sin recompilar), y como respaldo, la copia empaquetada dentro
+# del propio ejecutable (para que nunca falten si alguien mueve solo el .exe).
 AI_INSTRUCTIONS_SEARCH_DIRECTORIES = (APPLICATION_ROOT_DIRECTORY_PATH, BUNDLED_RESOURCES_DIRECTORY_PATH)
 
 PROGRESS_LOG_STEP_PERCENTAGE = 5
