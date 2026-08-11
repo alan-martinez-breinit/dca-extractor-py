@@ -72,7 +72,11 @@ def format_column_definition(column_index, column_name, sample_values_for_column
     return f"Col{column_index + 1}={safe_column_name} {inferred_type}"
 
 
-def build_schema_ini_section_for_file(local_file_path, file_name):
+def read_column_names_and_sample_rows(local_file_path):
+    """Lee el encabezado y una muestra de filas de un .txt delimitado por "|".
+    Compartido entre schema.ini y el diccionario de IA para que ambos infieran
+    tipo de columna exactamente de la misma forma, sin duplicar la lectura.
+    """
     with open(local_file_path, "r", encoding="utf-8", errors="replace") as data_file_handle:
         header_line = data_file_handle.readline().rstrip("\r\n")
         column_names = header_line.split("|")
@@ -83,6 +87,12 @@ def build_schema_ini_section_for_file(local_file_path, file_name):
             if not data_line:
                 break
             sample_rows.append(data_line.rstrip("\r\n").split("|"))
+
+    return column_names, sample_rows
+
+
+def build_schema_ini_section_for_file(local_file_path, file_name):
+    column_names, sample_rows = read_column_names_and_sample_rows(local_file_path)
 
     column_definitions = [
         format_column_definition(

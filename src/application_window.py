@@ -36,11 +36,9 @@ from src.secure_file_transfer_service import SecureFileTransferService
 from src.schema_ini_generator import generate_schema_ini_file
 from src.download_period_filter import (
     DOWNLOAD_PERIOD_BUTTON_SPECS,
-    resolve_period_output_specs,
     resolve_period_short_label,
-    build_period_output_file_path,
+    filter_remote_file_names_for_period,
     build_download_context_note,
-    write_filtered_period_files,
 )
 from src.download_run_info import format_duration_message
 from src.download_monitoring_log import append_monitoring_entry
@@ -132,7 +130,7 @@ class DCAExtractorApplicationWindow:
         draw_cabinet_glyph(header_icon_canvas, ICON_GLYPH_SIZE_PIXELS / 2, ICON_GLYPH_SIZE_PIXELS / 2,
                             ICON_GLYPH_SIZE_PIXELS, COLOR_PALETTE["on_primary_color"])
 
-        tkinter.Label(header_content_frame, text="FTP DCA AUTO  POLIS", font=self.application_fonts["title_font"],
+        tkinter.Label(header_content_frame, text="FTP DCA AUTOPOLIS", font=self.application_fonts["title_font"],
                       bg=COLOR_PALETTE["primary_color"], fg=COLOR_PALETTE["on_primary_color"]).pack(side="left")
 
     def build_hero_status_card(self):
@@ -424,25 +422,6 @@ class DCAExtractorApplicationWindow:
             target=self.run_download_workflow, args=(period_key,), daemon=True)
         download_thread.start()
 
-    def download_and_filter_remote_file(self, secure_file_transfer_service, remote_file_name,
-                                         current_file_size_in_bytes, local_destination_directory_path,
-                                         period_output_specs, reference_today, on_chunk_downloaded_callback):
-        temporary_download_file_path = os.path.join(
-            local_destination_directory_path, f"{remote_file_name}.download")
-        try:
-            downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
-                remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
-                on_chunk_downloaded_callback, local_file_name_override=os.path.basename(temporary_download_file_path))
-
-            output_file_paths, output_row_counts = write_filtered_period_files(
-                temporary_download_file_path, local_destination_directory_path, remote_file_name,
-                period_output_specs, reference_today)
-        finally:
-            if os.path.isfile(temporary_download_file_path):
-                os.remove(temporary_download_file_path)
-
-        return downloaded_file_size_in_bytes, output_file_paths, output_row_counts
-
     def run_download_workflow(self, period_key):
         secure_file_transfer_service = SecureFileTransferService()
         local_destination_directory_path = None
@@ -476,25 +455,28 @@ class DCAExtractorApplicationWindow:
                 self.append_log_entry("La subcarpeta del cliente ya existia, no se realizaron cambios", "normal_tag")
 
             self.append_log_entry("Accediendo a carpeta de descargas", "success_tag")
-            remote_text_file_names = secure_file_transfer_service.list_remote_text_file_names(REMOTE_DIRECTORY_PATH)
+            all_remote_text_file_names = secure_file_transfer_service.list_remote_text_file_names(
+                REMOTE_DIRECTORY_PATH)
+            remote_text_file_names = filter_remote_file_names_for_period(all_remote_text_file_names, period_key)
 
             if not remote_text_file_names:
                 elapsed_seconds = time.time() - overall_workflow_start_time
                 self.update_status_message("No hay archivos .txt")
                 self.update_progress_label_message("Sin archivos")
-                self.append_log_entry("No se encontraron archivos .txt", "error_tag")
+                self.append_log_entry(
+                    f"No se encontraron archivos .txt para el periodo '{period_short_label}'", "error_tag")
                 self.append_log_entry(
                     f"Tiempo transcurrido: {format_duration_message(elapsed_seconds)}", "normal_tag")
                 secure_file_transfer_service.disconnect_from_remote_server()
                 append_monitoring_entry(period_short_label)
                 messagebox.showwarning(
                     "Sin archivos para descargar",
-                    "El servidor DCA no tiene archivos .txt disponibles en este momento.\n\n"
+                    f"El servidor DCA no tiene archivos .txt para el periodo '{period_short_label}' "
+                    "en este momento.\n\n"
                     f"{SUPPORT_CONTACT_MESSAGE}")
                 self.finish_download_process()
                 return
 
-            period_output_specs = resolve_period_output_specs(period_key)
             reference_today = datetime.date.today()
 
             remote_files_with_sizes_ascending = sorted(
@@ -521,16 +503,12 @@ class DCAExtractorApplicationWindow:
                 self.update_progress_label_message(
                     f"Descargando {current_file_index + 1}/{total_file_count} archivos...")
 
-                for output_suffix, _ in period_output_specs:
-                    output_file_path = build_period_output_file_path(
-                        local_destination_directory_path, remote_file_name, output_suffix)
-                    output_file_name = os.path.basename(output_file_path)
-                    if local_file_with_matching_name_exists(local_destination_directory_path, output_file_name):
-                        self.append_log_entry(
-                            f"El archivo ya existe localmente y sera sobrescrito: {output_file_name}", "normal_tag")
-                    else:
-                        self.append_log_entry(
-                            f"El archivo no existe localmente y sera creado: {output_file_name}", "normal_tag")
+                if local_file_with_matching_name_exists(local_destination_directory_path, remote_file_name):
+                    self.append_log_entry(
+                        f"El archivo ya existe localmente y sera sobrescrito: {remote_file_name}", "normal_tag")
+                else:
+                    self.append_log_entry(
+                        f"El archivo no existe localmente y sera creado: {remote_file_name}", "normal_tag")
 
                 self.append_log_entry(
                     f"Descargando: {remote_file_name} ({current_file_size_in_bytes / 1024 / 1024:.2f} MB)",
@@ -566,11 +544,9 @@ class DCAExtractorApplicationWindow:
                     self.root_window.update_idletasks()
 
                 file_download_start_time = time.time()
-                downloaded_file_size_in_bytes, output_file_paths, output_row_counts = (
-                    self.download_and_filter_remote_file(
-                        secure_file_transfer_service, remote_file_name, current_file_size_in_bytes,
-                        local_destination_directory_path, period_output_specs, reference_today,
-                        handle_chunk_downloaded))
+                downloaded_file_size_in_bytes = secure_file_transfer_service.download_remote_file_with_progress(
+                    remote_file_name, current_file_size_in_bytes, local_destination_directory_path,
+                    handle_chunk_downloaded)
                 file_elapsed_seconds = time.time() - file_download_start_time
 
                 total_bytes_downloaded_so_far += downloaded_file_size_in_bytes
@@ -586,10 +562,6 @@ class DCAExtractorApplicationWindow:
                 self.append_log_entry(
                     f"Completado: {remote_file_name} en {format_duration_message(file_elapsed_seconds)} "
                     f"({file_speed_in_mb_per_second:.2f} MB/s)", "success_tag")
-                for output_suffix, output_row_count in output_row_counts.items():
-                    output_file_name = os.path.basename(output_file_paths[output_suffix])
-                    self.append_log_entry(
-                        f"  -> {output_file_name}: {output_row_count} filas", "normal_tag")
 
             secure_file_transfer_service.disconnect_from_remote_server()
 
@@ -598,12 +570,13 @@ class DCAExtractorApplicationWindow:
             generate_schema_ini_file(local_destination_directory_path, all_text_file_names_in_destination)
             self.append_log_entry("schema.ini generado exitosamente", "success_tag")
 
+            context_note = build_download_context_note(period_key, reference_today)
+
             instructions_source_file_path = find_first_available_static_file_path(
                 AI_INSTRUCTIONS_SEARCH_DIRECTORIES, AI_INSTRUCTIONS_FILE_NAME)
             if instructions_source_file_path is not None:
                 with open(instructions_source_file_path, "r", encoding="utf-8", errors="replace") as source_handle:
                     base_instructions_content = source_handle.read()
-                context_note = build_download_context_note(period_key, reference_today)
                 instructions_destination_path = os.path.join(
                     local_destination_directory_path, AI_INSTRUCTIONS_FILE_NAME)
                 with open(instructions_destination_path, "w", encoding="utf-8") as destination_handle:
