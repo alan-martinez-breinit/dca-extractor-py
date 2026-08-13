@@ -24,15 +24,44 @@ def draw_rounded_rectangle(canvas_widget, top_left_x, top_left_y, bottom_right_x
 # en cualquier dispositivo.
 
 def draw_download_glyph(canvas_widget, center_x, center_y, glyph_size, color, tags=()):
+    """Documento con esquina doblada, flecha hacia abajo y linea base — icono de
+    "descargar archivo", en el mismo estilo de trazo (outline) que los demas iconos."""
     half_size = glyph_size / 2
+    page_left = center_x - half_size * 0.55
+    page_right = center_x + half_size * 0.55
+    page_top = center_y - half_size * 0.95
+    page_bottom = center_y + half_size * 0.95
+    fold = half_size * 0.4
+
     canvas_widget.create_line(
-        center_x, center_y - half_size, center_x, center_y + half_size * 0.15,
-        fill=color, width=2, capstyle="round", tags=tags)
-    canvas_widget.create_polygon(
-        center_x - half_size * 0.55, center_y - half_size * 0.05,
-        center_x + half_size * 0.55, center_y - half_size * 0.05,
-        center_x, center_y + half_size,
-        fill=color, outline=color, tags=tags)
+        page_left, page_top,
+        page_right - fold, page_top,
+        page_right, page_top + fold,
+        page_right, page_bottom,
+        page_left, page_bottom,
+        page_left, page_top,
+        fill=color, width=1.1, capstyle="round", joinstyle="round", tags=tags)
+    canvas_widget.create_line(
+        page_right - fold, page_top,
+        page_right - fold, page_top + fold,
+        page_right, page_top + fold,
+        fill=color, width=1.1, capstyle="round", joinstyle="round", tags=tags)
+
+    arrow_top_y = center_y - half_size * 0.35
+    arrow_bottom_y = center_y + half_size * 0.32
+    canvas_widget.create_line(
+        center_x, arrow_top_y, center_x, arrow_bottom_y,
+        fill=color, width=1.1, capstyle="round", tags=tags)
+    canvas_widget.create_line(
+        center_x - half_size * 0.28, arrow_bottom_y - half_size * 0.28,
+        center_x, arrow_bottom_y,
+        center_x + half_size * 0.28, arrow_bottom_y - half_size * 0.28,
+        fill=color, width=1.1, capstyle="round", joinstyle="round", tags=tags)
+
+    base_y = page_bottom - half_size * 0.22
+    canvas_widget.create_line(
+        page_left + half_size * 0.22, base_y, page_right - half_size * 0.22, base_y,
+        fill=color, width=1.1, capstyle="round", tags=tags)
 
 
 def draw_clipboard_glyph(canvas_widget, center_x, center_y, glyph_size, color, tags=()):
