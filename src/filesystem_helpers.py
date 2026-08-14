@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 
 
@@ -28,26 +27,3 @@ def list_text_file_names_in_directory(directory_path):
         file_name for file_name in os.listdir(directory_path)
         if file_name.lower().endswith(".txt")
     )
-
-
-def find_first_available_static_file_path(candidate_source_directories, file_name):
-    """Busca file_name en cada carpeta candidata, en orden, y devuelve la ruta
-    de la primera que exista. Devuelve None si no se encontro en ninguna.
-    """
-    for candidate_directory_path in candidate_source_directories:
-        candidate_source_file_path = os.path.join(candidate_directory_path, file_name)
-        if os.path.isfile(candidate_source_file_path):
-            return candidate_source_file_path
-    return None
-
-
-def copy_first_available_static_file(candidate_source_directories, file_name, destination_directory_path):
-    """Busca file_name en cada carpeta candidata, en orden, y copia la primera
-    que exista. Retorna True si se copio, False si no se encontro en ninguna.
-    """
-    source_file_path = find_first_available_static_file_path(candidate_source_directories, file_name)
-    if source_file_path is None:
-        return False
-    destination_file_path = os.path.join(destination_directory_path, file_name)
-    shutil.copyfile(source_file_path, destination_file_path)
-    return True

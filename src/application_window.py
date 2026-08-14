@@ -23,16 +23,13 @@ from src.configuration_settings import (
     PROGRESS_LOG_STEP_PERCENTAGE,
     INTERFACE_UPDATE_STEP_PERCENTAGE,
     AI_INSTRUCTIONS_FILE_NAME,
-    BUNDLED_DOCUMENTATION_FILE_NAMES,
-    AI_INSTRUCTIONS_SEARCH_DIRECTORIES,
+    STATIC_DOCUMENTATION_FILE_NAMES,
 )
 from src.filesystem_helpers import (
     ensure_base_directory_exists,
     ensure_client_subdirectory_exists,
     local_file_with_matching_name_exists,
     list_text_file_names_in_directory,
-    find_first_available_static_file_path,
-    copy_first_available_static_file,
 )
 from src.remote_file_transfer_service import RemoteFileTransferService
 from src.schema_ini_generator import generate_schema_ini_file
@@ -656,8 +653,6 @@ class DCAExtractorApplicationWindow:
                     f"Completado: {remote_file_name} en {format_duration_message(file_elapsed_seconds)} "
                     f"({file_speed_in_mb_per_second:.2f} MB/s)", "success_tag")
 
-            remote_file_transfer_service.disconnect_from_remote_server()
-
             self.append_log_entry("Generando schema.ini con la descripcion de cada archivo...", "normal_tag")
             all_text_file_names_in_destination = list_text_file_names_in_directory(local_destination_directory_path)
             generate_schema_ini_file(local_destination_directory_path, all_text_file_names_in_destination)
@@ -665,29 +660,39 @@ class DCAExtractorApplicationWindow:
 
             context_note = build_download_context_note(period_key, reference_today)
 
-            instructions_source_file_path = find_first_available_static_file_path(
-                AI_INSTRUCTIONS_SEARCH_DIRECTORIES, AI_INSTRUCTIONS_FILE_NAME)
-            if instructions_source_file_path is not None:
-                with open(instructions_source_file_path, "r", encoding="utf-8", errors="replace") as source_handle:
+            # INSTRUCCIONES_IA.md/DICCIONARIO_IA.md se descargan del servidor DCA
+            # (mismo servidor y carpeta que los .txt, subidos ahi por el lado
+            # admin en cada corrida). No hay copia local ni empaquetada en el
+            # .exe: si el servidor no los tiene, se omiten de forma visible en
+            # el log en vez de caer a una copia local que podria estar
+            # desactualizada sin que nadie lo note.
+            instructions_destination_path = os.path.join(
+                local_destination_directory_path, AI_INSTRUCTIONS_FILE_NAME)
+            instructions_were_downloaded_from_server = remote_file_transfer_service.download_named_file_if_exists(
+                AI_INSTRUCTIONS_FILE_NAME, local_destination_directory_path)
+            if instructions_were_downloaded_from_server:
+                with open(instructions_destination_path, "r", encoding="utf-8", errors="replace") as source_handle:
                     base_instructions_content = source_handle.read()
-                instructions_destination_path = os.path.join(
-                    local_destination_directory_path, AI_INSTRUCTIONS_FILE_NAME)
                 with open(instructions_destination_path, "w", encoding="utf-8") as destination_handle:
                     destination_handle.write(context_note + "\n---\n\n" + base_instructions_content)
                 self.append_log_entry(
-                    f"{AI_INSTRUCTIONS_FILE_NAME} actualizado con el contexto de esta descarga", "success_tag")
+                    f"{AI_INSTRUCTIONS_FILE_NAME} descargado del servidor DCA y actualizado "
+                    "con el contexto de esta descarga", "success_tag")
             else:
-                self.append_log_entry(f"{AI_INSTRUCTIONS_FILE_NAME} no encontrado, se omitio", "normal_tag")
+                self.append_log_entry(
+                    f"{AI_INSTRUCTIONS_FILE_NAME} no estaba en el servidor DCA, se omitio", "normal_tag")
 
-            for bundled_documentation_file_name in BUNDLED_DOCUMENTATION_FILE_NAMES:
-                documentation_file_was_copied = copy_first_available_static_file(
-                    AI_INSTRUCTIONS_SEARCH_DIRECTORIES, bundled_documentation_file_name,
-                    local_destination_directory_path)
-                if documentation_file_was_copied:
-                    self.append_log_entry(f"{bundled_documentation_file_name} copiado exitosamente", "success_tag")
+            for static_documentation_file_name in STATIC_DOCUMENTATION_FILE_NAMES:
+                documentation_file_was_downloaded = remote_file_transfer_service.download_named_file_if_exists(
+                    static_documentation_file_name, local_destination_directory_path)
+                if documentation_file_was_downloaded:
+                    self.append_log_entry(
+                        f"{static_documentation_file_name} descargado del servidor DCA", "success_tag")
                 else:
                     self.append_log_entry(
-                        f"{bundled_documentation_file_name} no encontrado, se omitio", "normal_tag")
+                        f"{static_documentation_file_name} no estaba en el servidor DCA, se omitio", "normal_tag")
+
+            remote_file_transfer_service.disconnect_from_remote_server()
 
             elapsed_seconds = time.time() - overall_workflow_start_time
 

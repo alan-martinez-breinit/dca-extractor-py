@@ -1,5 +1,4 @@
 import os
-import sys
 
 SECURE_FILE_TRANSFER_HOST_ADDRESS = "169.62.217.83"
 SECURE_FILE_TRANSFER_PORT_NUMBER = 22
@@ -16,13 +15,6 @@ LOCAL_CLIENT_SUBDIRECTORY_NAME = "autopolis"
 
 REMOTE_FILE_EXTENSION_FILTER = ".txt"
 
-if getattr(sys, "frozen", False):
-    APPLICATION_ROOT_DIRECTORY_PATH = os.path.dirname(sys.executable)
-    BUNDLED_RESOURCES_DIRECTORY_PATH = getattr(sys, "_MEIPASS", APPLICATION_ROOT_DIRECTORY_PATH)
-else:
-    APPLICATION_ROOT_DIRECTORY_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    BUNDLED_RESOURCES_DIRECTORY_PATH = APPLICATION_ROOT_DIRECTORY_PATH
-
 # INSTRUCCIONES_IA.md se maneja aparte (no como copia literal): cada descarga le
 # antepone una nota de contexto con el periodo solicitado antes de escribirlo.
 AI_INSTRUCTIONS_FILE_NAME = "INSTRUCCIONES_IA.md"
@@ -31,12 +23,11 @@ AI_INSTRUCTIONS_FILE_NAME = "INSTRUCCIONES_IA.md"
 # es estatico a proposito: dado el volumen de correcciones e informacion de
 # negocio que lleva, se prefiere control manual total sobre el texto en vez de
 # generarlo por inferencia (que podria fallar el match o el tipo en silencio).
-BUNDLED_DOCUMENTATION_FILE_NAMES = ("DICCIONARIO_IA.md",)
-
-# Orden de busqueda para los documentos de IA: primero junto al .exe (permite
-# reemplazarlos sin recompilar), y como respaldo, la copia empaquetada dentro
-# del propio ejecutable (para que nunca falten si alguien mueve solo el .exe).
-AI_INSTRUCTIONS_SEARCH_DIRECTORIES = (APPLICATION_ROOT_DIRECTORY_PATH, BUNDLED_RESOURCES_DIRECTORY_PATH)
+# Ambos se descargan del servidor DCA (subidos ahi por el lado admin,
+# DcaFtpExportAutomation) en cada corrida — no hay copia local ni empaquetada
+# en el .exe: si el servidor no los tiene, se omiten de forma visible en el
+# log en vez de caer a una copia local que podria estar desactualizada.
+STATIC_DOCUMENTATION_FILE_NAMES = ("DICCIONARIO_IA.md",)
 
 PROGRESS_LOG_STEP_PERCENTAGE = 5
 INTERFACE_UPDATE_STEP_PERCENTAGE = 0.5

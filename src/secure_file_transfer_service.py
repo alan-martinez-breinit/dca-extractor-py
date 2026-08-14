@@ -59,6 +59,21 @@ class SecureFileTransferService:
 
         return remote_file_size_in_bytes
 
+    def download_named_file_if_exists(self, remote_file_name, local_destination_directory_path):
+        """Descarga un archivo puntual por nombre exacto (sin filtrar por
+        REMOTE_FILE_EXTENSION_FILTER ni requerir que aparezca en el listado del
+        periodo). Best-effort: cualquier falla (archivo ausente en el servidor,
+        corte de red) se traga y devuelve False, para que un documento opcional
+        nunca tumbe la descarga completa de los .txt de negocio.
+        """
+        try:
+            local_destination_file_path = os.path.join(local_destination_directory_path, remote_file_name)
+            with open(local_destination_file_path, "wb") as local_output_file_handle:
+                self.secure_file_transfer_client.getfo(remote_file_name, local_output_file_handle)
+            return True
+        except Exception:
+            return False
+
     def disconnect_from_remote_server(self):
         if self.secure_file_transfer_client is not None:
             self.secure_file_transfer_client.close()

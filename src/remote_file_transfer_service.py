@@ -53,6 +53,9 @@ class RemoteFileTransferService:
     def download_remote_file_with_progress(self, *args, **kwargs):
         return self.active_client.download_remote_file_with_progress(*args, **kwargs)
 
+    def download_named_file_if_exists(self, *args, **kwargs):
+        return self.active_client.download_named_file_if_exists(*args, **kwargs)
+
     def disconnect_from_remote_server(self):
         if self.active_client is not None:
             self.active_client.disconnect_from_remote_server()

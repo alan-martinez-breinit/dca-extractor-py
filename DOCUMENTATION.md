@@ -61,15 +61,15 @@ DCA FTP extrae datos tabulares desde servidores SFTP remotos y genera automátic
 - Si valores de columna son mixtos (ej: "123" en primeras 200 filas, "ABC" después), tipo inferido puede ser incorrecto.
 - Mitigación: Documentar estrategia de muestreo en `INSTRUCCIONES_IA.md`.
 
-### 3. Instrucciones IA Embebidas
+### 3. Instrucciones IA — descargadas del servidor, sin copia local
 
-**Decisión**: Embeber `INSTRUCCIONES_IA.md` en `.exe` mediante PyInstaller `--add-data`, listado en `BUNDLED_DOCUMENTATION_FILE_NAMES` (`configuration_settings.py`) y copiado tras la descarga.
+**Decisión**: `INSTRUCCIONES_IA.md` y `DICCIONARIO_IA.md` no viven en este repo ni se empaquetan en el `.exe`. El lado admin (proyecto `DcaFtpExportAutomation`) los mantiene como archivos estáticos y los sube al mismo servidor/carpeta SFTP que los `.txt` de negocio en cada corrida (antes que las vistas pesadas). Este cliente los descarga por nombre exacto vía `RemoteFileTransferService.download_named_file_if_exists` (`AI_INSTRUCTIONS_FILE_NAME`/`STATIC_DOCUMENTATION_FILE_NAMES` en `configuration_settings.py`) durante cada descarga de datos.
 
 **Justificación**: Sistemas de IA (Claude, GPT) necesitan semántica de datos para interpretar campos DCA correctamente. Fuente única de verdad previene desvío de esquema.
 
-**Mecanismo Override**: Archivo externo (mismo directorio que `.exe`) tiene prioridad sobre el embebido. Permite actualizar el documento sin recompilar.
+**Por qué no hay copia local de respaldo**: una versión anterior de este mecanismo caía a una copia junto al `.exe` o embebida en él si el servidor no tenía el archivo. Se retiró a propósito: esa copia de respaldo podía quedar desactualizada indefinidamente y usarse en silencio, exactamente el problema que este diseño busca eliminar (corregir el documento sin recompilar/redistribuir el `.exe`). Ahora, si el servidor no tiene el archivo, la descarga simplemente lo omite y lo deja explícito en el log — nunca sirve una versión vieja sin avisar. La descarga en sí es best-effort (`download_named_file_if_exists` atrapa cualquier falla y devuelve `False`): un documento faltante o un hipo de red en esos dos archivos puntuales nunca aborta la descarga de los `.txt` de negocio.
 
-**Extensibilidad**: `BUNDLED_DOCUMENTATION_FILE_NAMES` es una tupla pensada para más de un documento — hay un `DICCIONARIO_IA.md` en preparación (en el repo, pero deliberadamente fuera de esta tupla hasta que se terminen sus ajustes). Agregarlo de vuelta = añadir su nombre a la tupla y su flag `--add-data` al build; no requiere tocar la lógica de copiado.
+**Extensibilidad**: `STATIC_DOCUMENTATION_FILE_NAMES` (`configuration_settings.py`) es una tupla pensada para más de un documento — actualmente incluye `DICCIONARIO_IA.md`. Agregar uno nuevo = añadir su nombre a la tupla aquí y su entrada en `$script:STATIC_DOCUMENTATION_FILE_NAMES` del lado servidor (`DcaFtpExportAutomation`).
 
 ### 4. Manejo de Charset (ANSI vs. OEM)
 
@@ -132,7 +132,8 @@ schema_ini_generator.generate_schema_ini_file()
     ↓
 schema.ini escrito
     ↓
-Copiar INSTRUCCIONES_IA.md a carpeta salida (si no está embebido)
+INSTRUCCIONES_IA.md / DICCIONARIO_IA.md descargados del servidor FTP
+(best-effort: si no están, se omiten y queda en el log)
     ↓
 UI: "Descarga completada" ✓
 ```

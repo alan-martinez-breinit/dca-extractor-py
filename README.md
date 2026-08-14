@@ -27,12 +27,12 @@ python main.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "FTP DCA AUTOPOLIS" --icon dca_icon.ico --add-data "INSTRUCCIONES_IA.md;." main.py
+pyinstaller --onefile --windowed --name "FTP DCA AUTOPOLIS" --icon dca_icon.ico main.py
 ```
 
 Ejecutable: `dist/FTP DCA AUTOPOLIS.exe`
 
-El archivo `INSTRUCCIONES_IA.md` se embebe en el `.exe`. Si existe una copia externa en el mismo directorio, tiene prioridad — útil para actualizar instrucciones sin recompilar.
+`INSTRUCCIONES_IA.md`/`DICCIONARIO_IA.md` no viven en este repo ni se empaquetan en el `.exe`: en cada descarga la app los trae del servidor FTP DCA (mismo servidor/carpeta que los `.txt` de negocio), donde los mantiene y sube el proyecto admin `DcaFtpExportAutomation`. Si el servidor no los tiene, la descarga simplemente los omite (queda registrado en el log) — corregir estos documentos no requiere recompilar ni redistribuir el `.exe`, solo actualizar la copia en `DcaFtpExportAutomation`.
 
 ## Estructura del Proyecto
 
